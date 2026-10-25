@@ -29,6 +29,11 @@ public sealed class ChatLogConfig : ISettingsTab
             ImGuiUtil.OptionCheckbox(ref Mutable.PlaySounds, Language.Options_PlaySounds_Name, Language.Options_PlaySounds_Description);
             ImGui.Spacing();
 
+            // VierAIfied
+            ImGuiUtil.OptionCheckbox(ref Mutable.VierAISpellCheck, "Check spelling in the chat input", "Misspelled words are marked. Hover over or right-click one for suggestions, Ignore or Add to dictionary.");
+            if (Mutable.VierAISpellCheck) VierAIfiedShared.SpellChecker.DrawSettings(); // VierAIfied: squiggle style, colour, ignored words (shared, saved straight away)
+            ImGui.Spacing();
+
             ImGuiUtil.OptionCheckbox(ref Mutable.SidebarTabView, Language.Options_SidebarTabView_Name, string.Format(Language.Options_SidebarTabView_Description, Plugin.PluginName));
             ImGui.Spacing();
 

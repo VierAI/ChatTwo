@@ -145,7 +145,11 @@ public static class AutoTranslate
                                 var rawName = rowParser.ReadStringColumn(col);
                                 if (!rawName.IsEmpty)
                                 {
-                                    list.Add(new AutoTranslateEntry(row.Group, (uint)i, rawName.ToString(), string.Empty));
+                                    list.Add(new AutoTranslateEntry(row.Group, (uint)i, rawName.ToString(), string.Empty)
+                                    {
+                                        // Text commands (emotes etc.) are inserted as plain text, e.g. /balldance, instead of an <at:group,key> payload
+                                        PlainText = sheetName == "TextCommand" && rawName.ToString().StartsWith('/')
+                                    });
 
                                     if (shouldAdd)
                                         ValidEntries.Add((row.Group, (uint)i));
@@ -342,4 +346,5 @@ public class AutoTranslateEntry(uint group, uint row, string str, string title)
     public uint Row { get; } = row;
     public string Text { get; } = str;
     public string Title { get; } = title;
+    public bool PlainText { get; init; }
 }

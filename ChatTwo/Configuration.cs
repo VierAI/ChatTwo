@@ -91,6 +91,7 @@ public class Configuration : IPluginConfiguration
     public bool CollapseKeepUniqueLinks;
     public bool PlaySounds = true;
     public bool KeepInputFocus = true;
+    public bool VierAISpellCheck = true; // VierAIfied: spell checker in the chat input
     public int MaxLinesToRender = 10_000; // 1-10000
     public bool Use24HourClock;
 
@@ -186,6 +187,7 @@ public class Configuration : IPluginConfiguration
         CollapseKeepUniqueLinks = other.CollapseKeepUniqueLinks;
         PlaySounds = other.PlaySounds;
         KeepInputFocus = other.KeepInputFocus;
+        VierAISpellCheck = other.VierAISpellCheck; // VierAIfied
         MaxLinesToRender = other.MaxLinesToRender;
         Use24HourClock = other.Use24HourClock;
         ShowEmotes = other.ShowEmotes;

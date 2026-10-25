@@ -90,6 +90,7 @@ public sealed class Plugin : IDalamudPlugin
         {
             GameStarted = Process.GetCurrentProcess().StartTime.ToUniversalTime();
 
+            VierAIfiedMigration.ImportOfficialSettings(Interface, msg => Log.Information(msg));
             Config = Interface.GetPluginConfig() as Configuration ?? new Configuration();
 
 #pragma warning disable CS0618 // Type or member is obsolete
@@ -138,6 +139,8 @@ public sealed class Plugin : IDalamudPlugin
             MessageManager = new MessageManager(this); // Does it require UI?
 
             ChatLog = new ChatLog(this);
+            VierAIfied.KeybindAudit.Register(this);
+            VierAIfiedShared.SpellChecker.Init(Interface.ConfigDirectory.FullName, msg => Log.Information(msg), () => ObjectTable.Where(o => o.ObjectKind == Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Pc).Select(o => o.Name.TextValue).ToList()); // VierAIfied
             SettingsWindow = new SettingsWindow(this);
             DbViewer = new DbViewer(this);
             InputPreview = new InputPreview(ChatLog.InputHandler);
@@ -166,6 +169,7 @@ public sealed class Plugin : IDalamudPlugin
 
             Framework.Update += FrameworkUpdate;
             Interface.UiBuilder.Draw += Draw;
+            Interface.UiBuilder.OpenMainUi += OpenMainUi;
             Interface.LanguageChanged += LanguageChanged;
 
             if (Config.ShowEmotes)
@@ -204,6 +208,7 @@ public sealed class Plugin : IDalamudPlugin
     public void Dispose()
     {
         Interface.LanguageChanged -= LanguageChanged;
+        Interface.UiBuilder.OpenMainUi -= OpenMainUi;
         Interface.UiBuilder.Draw -= Draw;
         Framework.Update -= FrameworkUpdate;
         GameFunctions.GameFunctions.SetChatInteractable(true);
@@ -225,6 +230,12 @@ public sealed class Plugin : IDalamudPlugin
 
         EmoteCache.Dispose();
         ServerCore?.DisposeAsync().AsTask().Wait();
+    }
+
+    private void OpenMainUi()
+    {
+        if (ChatLog != null)
+            ChatLog.CurrentHideState = GameFunctions.Types.HideState.None;
     }
 
     private void Draw()
@@ -277,6 +288,10 @@ public sealed class Plugin : IDalamudPlugin
 
     private void FrameworkUpdate(IFramework framework)
     {
+        // Characters bypass the one-edge-per-frame queue. Editing keys and
+        // shortcuts stay in it, so a tap still has a frame where the key is down.
+        VierAIfied.InputQueue.PassTextAheadOfKeyEdges(msg => Log.Warning(msg));
+
         if (DeferredSaveFrames >= 0 && DeferredSaveFrames-- == 0)
             SaveConfig();
 

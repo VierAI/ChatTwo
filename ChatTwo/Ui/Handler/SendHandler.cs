@@ -10,7 +10,7 @@ public class SendHandler
 {
     private readonly Plugin Plugin;
 
-    public List<string> InputBacklog = [];
+    public List<string> InputBacklog = VierAIfied.InputHistory.Shared();
     public int InputBacklogIdx = -1;
 
     private string Message = string.Empty;
@@ -132,5 +132,6 @@ public class SendHandler
         }
 
         InputBacklog.Add(message);
+        VierAIfied.InputHistory.Save();
     }
 }

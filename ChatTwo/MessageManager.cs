@@ -38,6 +38,7 @@ public class MessageManager : IAsyncDisposable
     private ConcurrentQueue<PendingMessage> PendingAsync { get; } = [];
     private readonly Thread PendingMessageThread;
     private readonly CancellationTokenSource PendingThreadCancellationToken = new();
+    private readonly ManualResetEventSlim PendingMessageSignal = new(false);
 
     private Hook<RaptureLogModule.Delegates.AddMsgSourceEntry>? ContentIdResolverHook { get; init; }
 
@@ -96,6 +97,7 @@ public class MessageManager : IAsyncDisposable
         Plugin.ChatGui.ChatMessageUnhandled -= ChatMessage;
 
         await PendingThreadCancellationToken.CancelAsync();
+        PendingMessageSignal.Set();
         var timeout = 10_000; // 10s
         while (timeout > 0)
         {
@@ -108,11 +110,13 @@ public class MessageManager : IAsyncDisposable
         }
 
         Store.Dispose();
+        if (!PendingMessageThread.IsAlive)
+            PendingMessageSignal.Dispose();
     }
 
     public static string DatabasePath()
     {
-        return Path.Join(Plugin.Interface.ConfigDirectory.FullName, "chat-sqlite.db");
+        return Path.Join(VierAIfiedMigration.DatabaseDirectory(Plugin.Interface, m => Plugin.Log.Warning(m)), "chat-sqlite.db");
     }
 
     private void Logout(int _, int __)
@@ -127,8 +131,15 @@ public class MessageManager : IAsyncDisposable
             LastContentId = contentId;
 
         // Drain the PendingSync queue into the PendingAsync queue.
+        var moved = false;
         while (PendingSync.TryDequeue(out var pending))
+        {
             PendingAsync.Enqueue(pending);
+            moved = true;
+        }
+
+        if (moved)
+            PendingMessageSignal.Set();
     }
 
     private void ProcessPendingMessages(CancellationToken token)
@@ -145,10 +156,22 @@ public class MessageManager : IAsyncDisposable
                 {
                     Plugin.Log.Error(ex, "Error processing pending message");
                 }
+
+                continue;
             }
-            else
+
+            // Reset, then re-check, so a message queued between the empty dequeue and the reset is not lost.
+            PendingMessageSignal.Reset();
+            if (!PendingAsync.IsEmpty)
+                continue;
+
+            try
             {
-                Thread.Sleep(1);
+                PendingMessageSignal.Wait(50, token);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
             }
         }
     }

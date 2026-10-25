@@ -1,0 +1,71 @@
+name: Chat 2 (VierAI-fied)
+author: Infi, Anna
+punchline: Electric Boogaloo - ♪ A whole new chat, a new fantastic chat window ♪ Unofficial VierAI-fied fork (AI generated code).
+description: |-
+  Chat 2 is a complete rewrite of the in-game chat window as a plugin.
+  It supports:
+
+  - Unlimited tabs
+  - Tabs that always send to a certain channel
+  - More flexible filtering
+  - RGB channel colouring
+  - Completely variable font size
+  - Sidebar tabs
+  - Unread counts
+  - Emotes
+  - Screenshot mode (obfuscate names)
+
+  Chat 2 by Infi, Anna - VierAI-fied
+
+  Forked from the official Chat 2 (https://github.com/Infiziert90/ChatTwo).
+
+  AI generated code: unofficial build, not supported by the original authors. Do not report issues from this build upstream.
+
+
+  Added:
+  - Spell checker with hover suggestions
+  - Up/Down message history (shared with XIM)
+  - Single-match Tab completion fills in directly
+  - Shout keybind and /chat2keys diagnostics
+  - Installer main window button shows the chat
+  - Imports the official Chat 2 settings
+
+  Fixed:
+  - Tab completion inserting <at:...> codes
+  - More responsive typing (no delayed or dropped keys)
+  - Messages could be lost from the queue
+  - No database clash with the official Chat 2
+  - Lighter keybind and message processing
+repo_url: https://github.com/VierAI/ChatTwo
+icon_url: https://raw.githubusercontent.com/VierAI/ChatTwo/vierai/vierai/icon.png
+accepts_feedback: false
+tags:
+  - Social
+  - UI
+  - Chat
+  - Replacement
+changelog: |-
+  Changes from Chat 2:
+  Features
+  - Spell checker in the chat input: misspelled words are highlighted, hover or right-click for suggestions, Add to dictionary or Ignore; skips commands, links, auto-translate, numbers, ALL CAPS and nearby player names; includes an FFXIV word list; toggle in Settings > Chat Log
+  - Spell check settings: Highlight, Wavy or Straight style, colour, highlight fill slider, hover suggestions on/off, Clear ignored words; ignored words and the user dictionary are shared between the VierAI-fied XIM and Chat 2 (vierai-config.json)
+  - Up/Down recalls earlier messages and commands; one history for all input boxes, saved between restarts and shared with the VierAI-fied XIM; Down past the newest entry restores your draft
+  - Tab completion fills in the command straight away when there is only one match
+  - Handles the Shout (always) game keybind; /chat2keys lists the chat keybinds read from the game
+  - The plugin installer's main window button now shows the chat window if it is hidden
+  - Installs as its own plugin (ChatTwoVierAIfied), imports the official Chat 2 settings on first start and shares the official message database
+
+  Fixes
+  - Tab completion of emotes and text commands inserted a code like <at:62,504> instead of the command
+  - More responsive typing: typed characters no longer wait in the one-key-per-frame queue, so fast typing and frame hitches no longer delay or drop letters; editing keys and shortcuts (Backspace, Enter, arrows, chords) stay queued so a tap still registers
+  - A message arriving at the same moment the message queue emptied could be lost; it is now always picked up
+  - Uses its own message database for the session when the official Chat 2 is loaded too (no duplicate messages or database locks)
+  - The input history shared with XIM is saved safely when both plugins write at once
+
+  Performance
+  - Keybind lookups are spread across frames (a few per tick, refreshed every 5 s) instead of one framework spike
+  - The message processing thread sleeps until a message arrives instead of waking every millisecond
+  - The key list used to release keys while typing is built once instead of on every keypress
+
+  Other
+  - Own plugin icon and AI-generated code disclosure

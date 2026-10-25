@@ -1,6 +1,8 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
     <PropertyGroup>
-        <Version>1.40.9</Version>
+        <Version>1.40.9.10</Version>
+        <AssemblyName>ChatTwoVierAIfied</AssemblyName>
+        <RootNamespace>ChatTwo</RootNamespace>
         <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>
 
@@ -11,6 +13,7 @@
         <PackageReference Include="Pidgin" Version="3.3.0" />
         <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
         <PackageReference Include="Watson.Lite" Version="6.3.9" />
+        <PackageReference Include="WeCantSpell.Hunspell" Version="7.0.1" /><!-- VierAIfied spell checker -->
     </ItemGroup>
 
     <ItemGroup>
@@ -60,4 +63,11 @@
     <Target Name="UnzipBuild" AfterTargets="Build">
         <Unzip SourceFiles="websiteBuild.zip" DestinationFolder="$(TargetDir)\Frontend"/>
     </Target>
+    <ItemGroup><!-- VierAIfied spell checker dictionaries -->
+        <EmbeddedResource Include="VierAIfied\Dictionaries\en_US.dic" LogicalName="VierAIfied.en_US.dic" />
+        <EmbeddedResource Include="VierAIfied\Dictionaries\en_US.aff" LogicalName="VierAIfied.en_US.aff" />
+        <EmbeddedResource Include="VierAIfied\Dictionaries\ffxiv-words.txt" LogicalName="VierAIfied.ffxiv-words.txt" />
+        <None Include="VierAIfied\Dictionaries\en_US-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
+        <None Include="VierAIfied\Dictionaries\THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
 </Project>

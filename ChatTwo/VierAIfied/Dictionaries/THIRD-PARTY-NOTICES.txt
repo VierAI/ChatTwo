@@ -1,0 +1,17 @@
+Third-party components used by the VierAI-fied spell checker
+============================================================
+
+WeCantSpell.Hunspell 7.0.1 (WeCantSpell.Hunspell.dll, unmodified NuGet package)
+  https://github.com/aarondandy/WeCantSpell.Hunspell
+  A .NET port of Hunspell, available under the Mozilla Public License 1.1, the GNU General
+  Public License 2.0 or later, or the GNU Lesser General Public License 2.1 or later, at your
+  choice. It is used here as a separate, unmodified library under the LGPL-2.1-or-later
+  option; its source code is available at the address above.
+
+en_US Hunspell dictionary (SCOWL, version 2020.12.07), embedded in the plugin DLL
+  https://github.com/wooorm/dictionaries (dictionaries/en), from http://wordlist.sourceforge.net
+  Copyright 2000-2018 Kevin Atkinson and others; permissive SCOWL/Ispell (BSD-style) licence.
+  The full licence text is in en_US-LICENSE.txt next to this file.
+
+ffxiv-words.txt (FFXIV and chat word list), embedded in the plugin DLL
+  AI generated code, distributed under this repository's licence.

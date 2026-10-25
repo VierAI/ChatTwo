@@ -25,6 +25,8 @@ public class InputHandler
     public readonly IChatWindow MainWindow;
 
     public readonly SendHandler SendHandler;
+    private readonly VierAIfied.HistoryNavigator HistoryNavigator;
+    private readonly VierAIfiedShared.SpellCheckBox Spell = new(); // VierAIfied: spell checker
     public readonly AutoCompleteHandler AutoCompleteHandler;
     public readonly PayloadHandler PayloadHandler;
     public readonly ChunkHandler ChunkHandler;
@@ -52,6 +54,7 @@ public class InputHandler
         InputHandlerId = id;
 
         SendHandler = new SendHandler(plugin);
+        HistoryNavigator = new VierAIfied.HistoryNavigator(SendHandler);
         ChunkHandler = new ChunkHandler(plugin);
         PayloadHandler = new PayloadHandler(this);
         AutoCompleteHandler = new AutoCompleteHandler(this);
@@ -87,6 +90,7 @@ public class InputHandler
         using (ImRaii.PushColor(ImGuiCol.Text, push ? ColourUtil.RgbaToAbgr(inputColour!.Value) : 0, push))
         {
             var isChatEnabled = activeTab is { InputDisabled: false };
+            if (Spell.TakeReplacement(ref ChatInput, out var spellCursor)) { Activate = true; ActivatePos = spellCursor; } // VierAIfied
             if (isChatEnabled && (Activate || FocusedPreview))
             {
                 FocusedPreview = false;
@@ -102,6 +106,7 @@ public class InputHandler
             }
             var inputActive = ImGui.IsItemActive();
             InputFocused = isChatEnabled && inputActive;
+            Spell.AfterInput(ChatInput, Plugin.Config.VierAISpellCheck && isChatEnabled, false, "##chat2-input", inputActive ? SpellCursorChar() : -1); // VierAIfied
 
             var tooltipDraw = Plugin.Config.PreviewPosition is PreviewPosition.Tooltip && Plugin.InputPreview.IsDrawable;
             if (tooltipDraw && ImGui.IsItemHovered())
@@ -160,6 +165,7 @@ public class InputHandler
                 }
             }
 
+            if (!Spell.RightClickConsumed) // VierAIfied: the spelling menu took this right-click
             using (var context = ImRaii.ContextPopupItem("ChatInputContext"))
             {
                 if (context)
@@ -170,6 +176,15 @@ public class InputHandler
                 }
             }
         }
+
+        Spell.DrawPopup(); // VierAIfied
+    }
+
+    // VierAIfied: CursorPos is a UTF-8 byte offset; the spell checker wants a char index.
+    private int SpellCursorChar()
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes(ChatInput);
+        return System.Text.Encoding.UTF8.GetCharCount(bytes, 0, Math.Clamp(CursorPos, 0, bytes.Length));
     }
 
     private bool IsValidCommand(string command)
@@ -246,42 +261,7 @@ public class InputHandler
         if (data.EventFlag != ImGuiInputTextFlags.CallbackHistory)
             return 0;
 
-        var prevPos = SendHandler.InputBacklogIdx;
-        switch (data.EventKey)
-        {
-            case ImGuiKey.UpArrow:
-                switch (SendHandler.InputBacklogIdx)
-                {
-                    case -1:
-                        var offset = 0;
-
-                        if (!string.IsNullOrWhiteSpace(ChatInput))
-                        {
-                            SendHandler.AddBacklog(ChatInput);
-                            offset = 1;
-                        }
-
-                        SendHandler.InputBacklogIdx = SendHandler.InputBacklog.Count - 1 - offset;
-                        break;
-                    case > 0:
-                        SendHandler.InputBacklogIdx--;
-                        break;
-                }
-                break;
-            case ImGuiKey.DownArrow:
-                if (SendHandler.InputBacklogIdx != -1)
-                    if (++SendHandler.InputBacklogIdx >= SendHandler.InputBacklog.Count)
-                        SendHandler.InputBacklogIdx = -1;
-                break;
-        }
-
-        if (prevPos == SendHandler.InputBacklogIdx)
-            return 0;
-
-        var historyStr = SendHandler.InputBacklogIdx >= 0 ? SendHandler.InputBacklog[SendHandler.InputBacklogIdx] : string.Empty;
-        data.DeleteChars(0, data.BufTextLen);
-        data.InsertChars(0, historyStr);
-
-        return 0;
+        // Up/Down recall of earlier input (shared, saved history; see VierAIfied/InputHistory.cs).
+        return HistoryNavigator.OnHistoryKey(ref data, data.EventKey);
     }
 }

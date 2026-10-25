@@ -21,9 +21,16 @@ public unsafe class KeybindManager : IDisposable {
     private Plugin Plugin { get; }
 
     public bool DirectChat;
+    internal IReadOnlyDictionary<string, Keybind> CurrentKeybinds => Keybinds;
     private long LastRefresh;
 
     private bool VanillaTextInputHasFocus;
+
+    // Native keybind lookups are spread across ticks. Doing the whole set on one tick spiked the framework.
+    private bool keybindRefreshActive = true;
+    private int keybindCursor;
+    private string[]? keybindNames;
+    private static VirtualKey[]? keysToRelease;
 
     private readonly Dictionary<string, Keybind> Keybinds = new();
     private static readonly IReadOnlyDictionary<string, ChannelSwitchInfo> KeybindsToIntercept = new Dictionary<string, ChannelSwitchInfo>
@@ -64,6 +71,7 @@ public unsafe class KeybindManager : IDisposable {
         ["CMD_REPLY_REV_ALWAYS"] = new(InputChannel.Tell, true, RotateMode.Reverse),
         ["CMD_SAY_ALWAYS"] = new(InputChannel.Say, true),
         ["CMD_YELL_ALWAYS"] = new(InputChannel.Yell, true),
+        ["CMD_SHOUT_ALWAYS"] = new(InputChannel.Shout, true),
         ["CMD_PARTY_ALWAYS"] = new(InputChannel.Party, true),
         ["CMD_ALLIANCE_ALWAYS"] = new(InputChannel.Alliance, true),
         ["CMD_FREECOM_ALWAYS"] = new(InputChannel.FreeCompany, true),
@@ -309,10 +317,41 @@ public unsafe class KeybindManager : IDisposable {
         Plugin.Framework.Update -= HandleKeybinds;
     }
 
-    private void UpdateKeybinds()
+    private void PumpKeybindRefresh()
     {
-        foreach (var name in KeybindsToIntercept.Keys)
+        if (keybindNames == null)
+        {
+            keybindNames = new string[KeybindsToIntercept.Count];
+            var i = 0;
+            foreach (var name in KeybindsToIntercept.Keys)
+                keybindNames[i++] = name;
+        }
+
+        const int batch = 4;
+        for (var n = 0; n < batch; n++)
+        {
+            if (keybindCursor >= keybindNames.Length)
+            {
+                keybindCursor = 0;
+                keybindRefreshActive = false;
+                DirectChat = Plugin.GameConfig.TryGet(UiControlOption.DirectChat, out bool option) && option;
+                LastRefresh = Environment.TickCount64;
+                return;
+            }
+
+            var name = keybindNames[keybindCursor++];
             Keybinds[name] = GetKeybind(name);
+        }
+    }
+
+    private static VirtualKey[] BuildKeysToRelease()
+    {
+        var keys = new List<VirtualKey>();
+        foreach (var key in Plugin.KeyState.GetValidVirtualKeys())
+            if (key is not VirtualKey.CONTROL and not VirtualKey.SHIFT and not VirtualKey.MENU)
+                keys.Add(key);
+
+        return keys.ToArray();
     }
 
     private static ModifierFlag GetModifiers(KeyboardSource source)
@@ -381,13 +420,12 @@ public unsafe class KeybindManager : IDisposable {
 
     public void HandleKeybinds(KeyboardSource source, bool ignoreChatOpen = false, bool modifiersOnly = false)
     {
-        // Refresh current keybinds every 5s
-        if (LastRefresh + 5 * 1000 < Environment.TickCount64)
-        {
-            UpdateKeybinds();
-            DirectChat = Plugin.GameConfig.TryGet(UiControlOption.DirectChat, out bool option) && option;
-            LastRefresh = Environment.TickCount64;
-        }
+        // Refresh current keybinds every 5s, a few native lookups per tick.
+        if (!keybindRefreshActive && LastRefresh + 5 * 1000 < Environment.TickCount64)
+            keybindRefreshActive = true;
+
+        if (keybindRefreshActive)
+            PumpKeybindRefresh();
 
         // Vanilla text input has focus
         if (RaptureAtkModule.Instance()->AtkModule.IsTextInputActive())
@@ -400,9 +438,9 @@ public unsafe class KeybindManager : IDisposable {
         // keys so we don't try to process them immediately on the next frame.
         if (VanillaTextInputHasFocus)
         {
-            foreach (var key in Plugin.KeyState.GetValidVirtualKeys())
-                if (key is not VirtualKey.CONTROL and not VirtualKey.SHIFT and not VirtualKey.MENU)
-                    Plugin.KeyState[key] = false;
+            keysToRelease ??= BuildKeysToRelease();
+            foreach (var key in keysToRelease)
+                Plugin.KeyState[key] = false;
             VanillaTextInputHasFocus = false;
             return;
         }
@@ -450,6 +488,7 @@ public unsafe class KeybindManager : IDisposable {
         if (currentBest.Item1 == VirtualKey.NO_KEY)
             return;
 
+        VierAIfied.KeybindAudit.LogMatch(source, currentBest.Item2, currentBest.Item1, modifierState);
         Plugin.KeyState[currentBest.Item1] = false;
         if (!KeybindsToIntercept.TryGetValue(currentBest.Item2, out var info))
             return;
