@@ -20,12 +20,6 @@ Full list: [CHANGELOG.md](CHANGELOG.md)
 - **Performance:** keybind lookups spread across frames, message thread no longer polls every millisecond.
 - Installs alongside as its own plugin and imports the official settings; the installer's main window button shows the chat.
 
-## Installing this fork
-
-Add this custom plugin repository in Dalamud (`/xlsettings` > Experimental > Custom Plugin Repositories), then install it from `/xlplugins`:
-
-`https://raw.githubusercontent.com/VierAI/DalamudPlugins/main/vierai.json`
-
 ## For the Chat 2 team
 
 If the original Chat 2 authors would like any of these changes sent back upstream as pull requests, please open an issue on this repository or contact the fork maintainer, and we'll gladly prepare them.

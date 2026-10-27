@@ -34,7 +34,21 @@ public static class ImGuiUtil
     ];
 
     private static Payload? Hovered;
+
+    // VierAI-fied (AI generated code): while drag selection is on in the message log, a left click on a link
+    // activates on release, and only if the press did not turn into a selection drag.
+    public static bool ClickOnRelease;
+    public static bool BlockRelease = true;
     private static Payload? LastLink;
+
+    // VierAI-fied (AI generated code): while a message's sender and content are drawn, every wrapped piece of text is
+    // recorded (screen box + char offset in the message plain text) for character-level drag selection.
+    public static VierAIfiedShared.TextSelection? SelRecorder;
+    public static Guid SelMsg;
+    /// <summary>Char offset of the chunk being drawn in the message plain text (sender + content text chunks).</summary>
+    public static int SelChunkBase;
+    private static int SelPartStart;
+    private static unsafe byte* SelPartRaw;
     private static readonly List<(Vector2, Vector2)> PayloadBounds = [];
 
     public static void PostPayload(Chunk chunk, PayloadHandler? handler)
@@ -55,8 +69,17 @@ public static class ImGuiUtil
             return;
 
         foreach (var button in Buttons)
+        {
+            if (button == ImGuiMouseButton.Left && ClickOnRelease)
+            {
+                if (!BlockRelease && ImGui.IsMouseReleased(ImGuiMouseButton.Left) && ImGui.IsItemHovered())
+                    handler.Click(chunk, payload, button);
+                continue;
+            }
+
             if (ImGui.IsItemClicked(button))
                 handler.Click(chunk, payload, button);
+        }
     }
 
     public static unsafe void WrapText(string csText, Chunk chunk, PayloadHandler? handler, Vector4 defaultText, float lineWidth)
@@ -66,6 +89,13 @@ public static class ImGuiUtil
             var oldPos = ImGui.GetCursorScreenPos();
 
             ImGuiNative.TextUnformatted(text, textEnd);
+            if (SelRecorder != null && textEnd > text)
+            {
+                var size = ImGui.GetItemRectSize();
+                var ofs = SelPartStart + Encoding.UTF8.GetCharCount(SelPartRaw, (int) (text - SelPartRaw));
+                var len = Encoding.UTF8.GetCharCount(text, (int) (textEnd - text));
+                SelRecorder.AddSeg(new VierAIfiedShared.TextSelection.Seg(SelMsg, SelChunkBase + ofs, csText, ofs, len, oldPos.X, oldPos.Y, size.X, size.Y));
+            }
             PostPayload(chunk, handler);
 
             if (!ReferenceEquals(LastLink, chunk.Link))
@@ -92,11 +122,18 @@ public static class ImGuiUtil
         if (csText.Length == 0)
             return;
 
+        var partStart = 0;
         foreach (var part in csText.Split(["\r\n", "\r", "\n"], StringSplitOptions.None))
         {
+            // VierAI-fied: char offset of this part in csText (for selection recording)
+            SelPartStart = partStart;
+            partStart += part.Length;
+            if (partStart < csText.Length)
+                partStart += csText[partStart] == '\r' && partStart + 1 < csText.Length && csText[partStart + 1] == '\n' ? 2 : 1;
             var bytes = Encoding.UTF8.GetBytes(part);
             fixed (byte* rawText = bytes)
             {
+                SelPartRaw = rawText;
                 var text = rawText;
                 var textEnd = text + bytes.Length;
 

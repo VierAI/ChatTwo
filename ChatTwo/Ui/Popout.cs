@@ -167,6 +167,8 @@ public class Popout : Window, IChatWindow
         Plugin.WindowSystem.RemoveWindow(this);
 
         Tab.PopOut = false;
+        Tab.InputHistory.Clear(); // VierAIfied: per-tab input history ends with the tab
+        Tab.InputHistoryIdx = -1;
         Plugin.SaveConfig();
     }
 

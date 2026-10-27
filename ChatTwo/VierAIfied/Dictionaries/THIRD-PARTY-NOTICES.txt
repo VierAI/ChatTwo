@@ -15,3 +15,13 @@ en_US Hunspell dictionary (SCOWL, version 2020.12.07), embedded in the plugin DL
 
 ffxiv-words.txt (FFXIV and chat word list), embedded in the plugin DLL
   AI generated code, distributed under this repository's licence.
+SixLabors.ImageSharp 3.1.12 (upstream dependency of this plugin, unmodified NuGet package)
+  https://github.com/SixLabors/ImageSharp, Copyright (c) Six Labors
+  Six Labors Split License 1.0: free use under the Apache License 2.0 when consumed by software
+  under an Open Source licence (this plugin is open source), as a transitive dependency, or by
+  small for-profit or non-profit users; otherwise a commercial licence is needed. Redistribution
+  in this open-source plugin is therefore under Apache-2.0 (https://www.apache.org/licenses/LICENSE-2.0).
+
+Licence check (2026-10-26): WeCantSpell.Hunspell 7.0.1 license.txt (MPL 1.1 / GPL 2.0 / LGPL 2.1,
+inherited from Hunspell) and the SCOWL en_US licence (BSD-style, redistribution allowed with notice)
+both permit redistribution in this open-source plugin; their notices ship in the release zip.

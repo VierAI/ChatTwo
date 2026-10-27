@@ -131,8 +131,29 @@ public sealed class PayloadHandler
         }
     }
 
+    // VierAI-fied (AI generated code): text of the drag selection, snapshotted when the menu was opened.
+    public static string? VierAISelectionText;
+    public static int VierAISelectionCount;
+    /// <summary>The web address under the mouse when the menu was opened (one of several on a line is fine).</summary>
+    public static string? VierAILinkText;
+
     private void ContextFooter(bool didCustomContext, Chunk chunk)
     {
+        if (VierAILinkText is { } linkText)
+        {
+            if (ImGui.Selectable("Copy link"))
+                ImGui.SetClipboardText(linkText);
+            if (ImGui.IsItemHovered())
+                ImGuiUtil.Tooltip(linkText);
+        }
+        if (VierAISelectionText is { } selText)
+        {
+            if (ImGui.Selectable(VierAISelectionCount <= 1 ? "Copy selection" : $"Copy selection ({VierAISelectionCount} lines)"))
+                ImGui.SetClipboardText(selText);
+        }
+        if (VierAILinkText != null || VierAISelectionText != null)
+            ImGui.Separator();
+
         ImRaii.MenuDisposable menu = default;
         if (didCustomContext)
         {
@@ -192,6 +213,12 @@ public sealed class PayloadHandler
 
     public unsafe void Click(Chunk chunk, Payload? payload, ImGuiMouseButton button)
     {
+        // VierAI-fied 1.40.9.21: the context menu opens on right-click only; left-click on a
+        // payload with no action of its own (items, players, plain text) does nothing, so
+        // left-click stays free for text selection. No sound for a no-op left-click.
+        if (button == ImGuiMouseButton.Left && !HasLeftClickAction(payload))
+            return;
+
         if (Plugin.Config.PlaySounds)
             UIGlobals.PlaySoundEffect(PopupSfx);
 
@@ -374,10 +401,18 @@ public sealed class PayloadHandler
                 WrapperUtil.TryOpenUri(uri.Uri);
                 break;
             default:
-                RightClickPayload(chunk, payload);
+                // VierAI-fied 1.40.9.21: no context menu on left-click
                 break;
         }
     }
+
+    private static bool HasLeftClickAction(Payload? payload) => payload switch
+    {
+        MapLinkPayload or QuestPayload or DalamudLinkPayload or DalamudPartyFinderPayload
+            or ChatTwoPartyFinderPayload or AchievementPayload or UriPayload => true,
+        RawPayload raw => Equals(raw, ChunkUtil.PeriodicRecruitmentLink),
+        _ => false,
+    };
 
     private void ClickLinkPayload(Chunk chunk, Payload payload, DalamudLinkPayload link)
     {
@@ -513,7 +548,12 @@ public sealed class PayloadHandler
         if (ImGui.Selectable(Language.Context_SendTell))
         {
             // Eureka, Bozja and Occult need special handling as tells work different
-            if (!Sheets.IsInForay())
+            var openedInXim = !Sheets.IsInForay() && VierAIfied.XimTell.TryOpen(player.PlayerName, world.Value.Name.ToString()); // VierAIfied
+            if (openedInXim)
+            {
+                // VierAIfied: opened in XIM, which focuses its own input
+            }
+            else if (!Sheets.IsInForay())
             {
                 InputHandler.ChatInput = $"/tell {player.PlayerName}";
                 if (world.Value.IsPublic)
@@ -526,7 +566,7 @@ public sealed class PayloadHandler
                 InputHandler.Plugin.Functions.Chat.SetEurekaTellChannel(player.PlayerName, world.Value.Name.ToString(), (ushort) world.RowId, 0, chunk.Message!.ContentId, 0, false);
             }
 
-            InputHandler.Activate = true;
+            if (!openedInXim) InputHandler.Activate = true; // VierAIfied: XIM has the focus
         }
 
         if (world.Value.IsPublic)

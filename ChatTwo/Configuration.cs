@@ -92,6 +92,10 @@ public class Configuration : IPluginConfiguration
     public bool PlaySounds = true;
     public bool KeepInputFocus = true;
     public bool VierAISpellCheck = true; // VierAIfied: spell checker in the chat input
+    public bool VierAITellOpensXim = true; // VierAIfied: Send Tell opens XIM when loaded
+    public bool VierAIFoldSpam = true; // VierAIfied: fold runs of system/glamour lines into one line
+    public bool VierAIDragSelect = true; // VierAIfied: click-and-drag line selection with copy in the message log
+    public int VierAIFoldSpamMin = 3; // VierAIfied: shortest run that gets folded (2-50)
     public int MaxLinesToRender = 10_000; // 1-10000
     public bool Use24HourClock;
 
@@ -188,6 +192,10 @@ public class Configuration : IPluginConfiguration
         PlaySounds = other.PlaySounds;
         KeepInputFocus = other.KeepInputFocus;
         VierAISpellCheck = other.VierAISpellCheck; // VierAIfied
+        VierAITellOpensXim = other.VierAITellOpensXim; // VierAIfied
+        VierAIFoldSpam = other.VierAIFoldSpam; // VierAIfied
+        VierAIFoldSpamMin = other.VierAIFoldSpamMin; // VierAIfied
+        VierAIDragSelect = other.VierAIDragSelect; // VierAIfied
         MaxLinesToRender = other.MaxLinesToRender;
         Use24HourClock = other.Use24HourClock;
         ShowEmotes = other.ShowEmotes;
@@ -290,6 +298,10 @@ public class Tab
 
     [NonSerialized] public Guid Identifier = Guid.NewGuid();
 
+    // VierAIfied: Up/Down input history for this tab, in memory only (VierAIfied/InputHistory.cs).
+    [NonSerialized] public List<string> InputHistory = new();
+    [NonSerialized] public int InputHistoryIdx = -1;
+
     public bool Matches(Message message)
     {
         if (Channel == InputChannel.Tell && TellTarget.IsSet())
@@ -348,6 +360,8 @@ public class Tab
             IndependentOpacity = IndependentOpacity,
             Opacity = Opacity,
             Identifier = Identifier,
+            InputHistory = InputHistory, // VierAIfied: keep this tab's history across config copies
+            InputHistoryIdx = InputHistoryIdx,
             InputDisabled = InputDisabled,
             SupportsInput = SupportsInput,
             CurrentChannel = CurrentChannel.Clone(),

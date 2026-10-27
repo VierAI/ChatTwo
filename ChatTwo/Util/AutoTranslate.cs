@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -228,6 +228,7 @@ public static class AutoTranslate
 
     public static void ReplaceWithPayload(ref byte[] bytes)
     {
+        bytes = ChatTwo.VierAIfied.AutoTranslateDisplay.ToTags(bytes); // VierAI-fied: arrow-wrapped display form
         var search = "<at:"u8.ToArray();
         if (bytes.Length <= search.Length)
             return;
@@ -270,6 +271,7 @@ public static class AutoTranslate
 
     public static bool StartsWithCommand(ref byte[] bytes)
     {
+        bytes = ChatTwo.VierAIfied.AutoTranslateDisplay.ToTags(bytes); // VierAI-fied: arrow-wrapped display form
         var search = "<at:"u8;
         if (bytes.Length <= search.Length)
             return false;

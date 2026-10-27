@@ -31,6 +31,7 @@ public sealed class ChatLogConfig : ISettingsTab
 
             // VierAIfied
             ImGuiUtil.OptionCheckbox(ref Mutable.VierAISpellCheck, "Check spelling in the chat input", "Misspelled words are marked. Hover over or right-click one for suggestions, Ignore or Add to dictionary.");
+            ImGuiUtil.OptionCheckbox(ref Mutable.VierAITellOpensXim, "Send Tell opens XIM", "When XIM is installed and loaded, Send Tell opens that player's XIM conversation instead of typing /tell here.");
             if (Mutable.VierAISpellCheck) VierAIfiedShared.SpellChecker.DrawSettings(); // VierAIfied: squiggle style, colour, ignored words (shared, saved straight away)
             ImGui.Spacing();
 

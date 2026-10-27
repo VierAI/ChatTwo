@@ -28,6 +28,7 @@ public partial class InputPreview : Window
 
     private int CursorPosition;
     private bool NextChunkIsAutoTranslate;
+    private bool PendingAtDisplay; // VierAI-fied
 
     public int SelectedCursorPos = -1;
 
@@ -178,7 +179,12 @@ public partial class InputPreview : Window
 
             NextChunkIsAutoTranslate = true;
             var payload = (AutoTranslatePayload) chunk.Link!;
-            CursorPosition += $"<at:{payload.Group},{payload.Key}>".Length;
+            // VierAI-fied: the input may hold the arrow-wrapped display form instead of the raw tag.
+            var atTag = $"<at:{payload.Group},{payload.Key}>";
+            if (InputHandler.ChatInput.Contains(atTag))
+                CursorPosition += atTag.Length;
+            else
+                PendingAtDisplay = true;
 
             return;
         }
@@ -215,6 +221,7 @@ public partial class InputPreview : Window
         if (NextChunkIsAutoTranslate)
         {
             NextChunkIsAutoTranslate = false;
+            if (PendingAtDisplay) { PendingAtDisplay = false; CursorPosition += text.Content.Length + 2; } // VierAI-fied
             ImGuiUtil.WrapText(text.Content, chunk, handler, InputHandler.Plugin.DefaultText, lineWidth);
             return;
         }

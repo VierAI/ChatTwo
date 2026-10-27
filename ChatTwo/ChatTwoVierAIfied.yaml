@@ -47,6 +47,7 @@ tags:
 changelog: |-
   Changes from Chat 2:
   Features
+  - Scroll-to-bottom button: when you scroll up in the message log, a small down-arrow button appears in its bottom-right corner; click it to jump back to the newest message
   - Spell checker in the chat input: misspelled words are highlighted, hover or right-click for suggestions, Add to dictionary or Ignore; skips commands, links, auto-translate, numbers, ALL CAPS and nearby player names; includes an FFXIV word list; toggle in Settings > Chat Log
   - Spell check settings: Highlight, Wavy or Straight style, colour, highlight fill slider, hover suggestions on/off, Clear ignored words; ignored words and the user dictionary are shared between the VierAI-fied XIM and Chat 2 (vierai-config.json)
   - Up/Down recalls earlier messages and commands; one history for all input boxes, saved between restarts and shared with the VierAI-fied XIM; Down past the newest entry restores your draft

@@ -31,15 +31,6 @@ public class AutoCompleteHandler
             return;
 
         AutoCompleteList ??= AutoTranslate.Matching(AutoCompleteInfo.ToComplete, Plugin.Config.SortAutoTranslate);
-        // VierAI-fied: a single match is filled in directly, no popup.
-        if (AutoCompleteOpen && ChatTwo.VierAIfied.SingleCompletion.TryApply(InputHandler, AutoCompleteInfo, AutoCompleteList))
-        {
-            AutoCompleteOpen = false;
-            AutoCompleteInfo = null;
-            AutoCompleteList = null;
-            return;
-        }
-
         if (AutoCompleteOpen)
         {
             ImGui.OpenPopup(AutoCompleteId);
@@ -127,7 +118,7 @@ public class AutoCompleteHandler
 
             var before = InputHandler.ChatInput[..AutoCompleteInfo.StartPos];
             var after = InputHandler.ChatInput[AutoCompleteInfo.EndPos..];
-            var replacement = entry.PlainText ? entry.Text : $"<at:{entry.Group},{entry.Row}>";
+            var replacement = ChatTwo.VierAIfied.AutoTranslateDisplay.Insertion(entry); // VierAI-fied
             InputHandler.ChatInput = $"{before}{replacement}{after}";
             ImGui.CloseCurrentPopup();
             InputHandler.Activate = true;

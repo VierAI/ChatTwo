@@ -112,5 +112,18 @@ public sealed class Display : ISettingsTab
             ImGuiUtil.OptionCheckbox(ref Mutable.CollapseKeepUniqueLinks, Language.Options_CollapseDuplicateMsgUniqueLink_Name, Language.Options_CollapseDuplicateMsgUniqueLink_Description);
         }
         ImGui.Spacing();
+
+        // VierAIfied (AI generated code): drag selection.
+        ImGuiUtil.OptionCheckbox(ref Mutable.VierAIDragSelect, "Drag to select and copy chat lines", "Drag across lines starting on their text to select them, then Ctrl+C or right-click > Copy selection. A plain click still opens links; dragging empty space still moves the window.");
+
+        // VierAIfied (AI generated code): spam digest.
+        ImGuiUtil.OptionCheckbox(ref Mutable.VierAIFoldSpam, "Fold system and glamour spam", "Runs of system, notice and glamour lines are shown as one line you can click to expand.");
+        if (Mutable.VierAIFoldSpam)
+        {
+            using var _ = ImRaii.PushIndent();
+            if (ImGuiUtil.InputIntVertical("Shortest run to fold", "How many of those lines in a row before they are folded (2-50).", ref Mutable.VierAIFoldSpamMin))
+                Mutable.VierAIFoldSpamMin = Math.Clamp(Mutable.VierAIFoldSpamMin, 2, 50);
+        }
+        ImGui.Spacing();
     }
 }

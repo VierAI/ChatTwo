@@ -168,6 +168,10 @@ public sealed class Plugin : IDalamudPlugin
                 MessageManager.FilterAllTabsAsync();
 
             Framework.Update += FrameworkUpdate;
+            VierAIfiedShared.CopyKeyGuard.Init(KeyState); // VierAI-fied: keep Ctrl+C on a selection from the game
+            Framework.Update += VierAIfiedShared.CopyKeyGuard.OnUpdate;
+            ClientState.TerritoryChanged += InvalidateHideChat;
+            ClientState.Login += InvalidateHideChat;
             Interface.UiBuilder.Draw += Draw;
             Interface.UiBuilder.OpenMainUi += OpenMainUi;
             Interface.LanguageChanged += LanguageChanged;
@@ -211,6 +215,9 @@ public sealed class Plugin : IDalamudPlugin
         Interface.UiBuilder.OpenMainUi -= OpenMainUi;
         Interface.UiBuilder.Draw -= Draw;
         Framework.Update -= FrameworkUpdate;
+        Framework.Update -= VierAIfiedShared.CopyKeyGuard.OnUpdate;
+        ClientState.TerritoryChanged -= InvalidateHideChat;
+        ClientState.Login -= InvalidateHideChat;
         GameFunctions.GameFunctions.SetChatInteractable(true);
 
         WindowSystem?.RemoveAllWindows();
@@ -296,12 +303,35 @@ public sealed class Plugin : IDalamudPlugin
             SaveConfig();
 
         if (!Config.HideChat)
+        {
+            HideChatNextCheck = 0;
+            return;
+        }
+
+        // VierAI-fied 1.40.9.19: the by-name addon lookups ran every frame. Once all chat addons are hidden the
+        // result is cached for 250 ms; a zone change or login re-checks on the next frame, and while the game
+        // keeps re-showing an addon it is checked every frame until it stays hidden.
+        var now = Environment.TickCount64;
+        if (now < HideChatNextCheck)
             return;
 
+        var hidAny = false;
         foreach (var name in ChatAddonNames)
+        {
             if (GameFunctions.GameFunctions.IsAddonInteractable(name))
+            {
                 GameFunctions.GameFunctions.SetAddonInteractable(name, false);
+                hidAny = true;
+            }
+        }
+
+        HideChatNextCheck = hidAny ? 0 : now + HideChatCheckIntervalMs;
     }
+
+    private const long HideChatCheckIntervalMs = 250;
+    private long HideChatNextCheck;
+    private void InvalidateHideChat(uint _) => HideChatNextCheck = 0;
+    private void InvalidateHideChat() => HideChatNextCheck = 0;
 
     public static bool InBattle => Condition[ConditionFlag.InCombat];
     public static bool GposeActive => Condition[ConditionFlag.WatchingCutscene];

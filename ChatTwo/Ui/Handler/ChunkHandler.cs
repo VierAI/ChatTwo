@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using ChatTwo.Code;
 using ChatTwo.Util;
 using Dalamud.Bindings.ImGui;
@@ -27,6 +27,8 @@ public class ChunkHandler
                 continue;
 
             DrawChunk(chunks[i], wrap, handler, lineWidth);
+            if (ImGuiUtil.SelRecorder != null && chunks[i] is TextChunk drawn) // VierAI-fied: selection char offsets
+                ImGuiUtil.SelChunkBase += drawn.Content?.Length ?? 0;
 
             if (i < chunks.Count - 1)
             {

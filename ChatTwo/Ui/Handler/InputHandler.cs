@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using System.Runtime.InteropServices;
 using ChatTwo.Code;
 using ChatTwo.GameFunctions;
@@ -62,6 +62,7 @@ public class InputHandler
 
     public void DrawInputArea(Tab activeTab, float inputWidth, ref bool tellSpecial)
     {
+        SendHandler.HistoryTab = activeTab; // VierAIfied: Up/Down history follows the tab being typed in
         var inputType = activeTab.CurrentChannel.UseTempChannel
             ? activeTab.CurrentChannel.TempChannel.ToChatType()
             : activeTab.CurrentChannel.Channel.ToChatType();
@@ -192,6 +193,8 @@ public class InputHandler
         return Plugin.CommandManager.Commands.ContainsKey(command) || Plugin.Commands.AllCommands.ContainsKey(command);
     }
 
+    private readonly VierAIfiedShared.AtomicPhrases Atomic = new(); // VierAI-fied
+
     private unsafe int Callback(scoped ref ImGuiInputTextCallbackData data)
     {
         // We play the opening sound here only if closing sound has been played before
@@ -229,6 +232,10 @@ public class InputHandler
             var end = data.CursorPos - white - 1;
             var utf8Message = Marshal.PtrToStringUTF8((nint)start, end);
             var correctedCursor = data.CursorPos - (end - utf8Message.Length);
+            // VierAI-fied: a single prefix match is filled in directly in ImGui's buffer.
+            if (ChatTwo.VierAIfied.SingleCompletion.TryApplyInCallback(ref data, white + 1, utf8Message))
+                return 0;
+
             AutoCompleteHandler.AutoCompleteInfo = new AutoCompleteInfo(utf8Message, white + 1, correctedCursor);
             AutoCompleteHandler.AutoCompleteOpen = true;
             AutoCompleteHandler.AutoCompleteSelection = 0;
@@ -247,6 +254,10 @@ public class InputHandler
             ActivatePos = -1;
         }
 
+        // VierAI-fied: auto-translate phrases act as one block (VierAIfied/AtomicPhrases.cs)
+        if (data.EventFlag == ImGuiInputTextFlags.CallbackAlways)
+            Atomic.Apply(ref data);
+
         Plugin.CommandHelpWindow.IsOpen = false;
         var text = MemoryHelper.ReadString((nint) data.Buf, data.BufTextLen);
         if (text.StartsWith('/'))
@@ -261,7 +272,7 @@ public class InputHandler
         if (data.EventFlag != ImGuiInputTextFlags.CallbackHistory)
             return 0;
 
-        // Up/Down recall of earlier input (shared, saved history; see VierAIfied/InputHistory.cs).
+        // Up/Down recall of earlier input (per tab, in memory only; see VierAIfied/InputHistory.cs).
         return HistoryNavigator.OnHistoryKey(ref data, data.EventKey);
     }
 }

@@ -60,6 +60,7 @@ internal sealed class SpellCheckBox
     private int hoverStart;
     private Task<List<string>>? hoverSuggestions;
     private Vector2 anchorMin, anchorMax, popupMin, popupMax;
+    private Vector2 hoverSize; // last drawn size of the hover popup, used to place it on screen
     private int refocusBytes = -1;
     private bool refocusPending;
 
@@ -106,6 +107,27 @@ internal sealed class SpellCheckBox
     {
         var a = (uint)Math.Clamp((abgr >> 24) * factor, 0f, 255f);
         return (abgr & 0x00FFFFFF) | (a << 24);
+    }
+
+    // Where to put a popup of the given size next to an anchor rect: on the preferred side (below, or above
+    // with preferAbove), flipped to the other side when it does not fit there and fits better on the other,
+    // then clamped inside the main viewport's work area on both axes. Size can be last frame's size (zero on
+    // the very first frame, which just uses the preferred side).
+    internal static Vector2 PlaceNear(Vector2 anchorMin, Vector2 anchorMax, Vector2 size, float gap, bool preferAbove = false)
+    {
+        var vp = ImGui.GetMainViewport();
+        var workMin = vp.WorkPos;
+        var workMax = vp.WorkPos + vp.WorkSize;
+        var roomBelow = workMax.Y - (anchorMax.Y + gap);
+        var roomAbove = anchorMin.Y - gap - workMin.Y;
+        var above = preferAbove
+            ? !(size.Y > roomAbove && roomBelow > roomAbove)
+            : size.Y > roomBelow && roomAbove > roomBelow;
+        var y = above ? anchorMin.Y - gap - size.Y : anchorMax.Y + gap;
+        var x = anchorMin.X;
+        x = Math.Max(workMin.X, Math.Min(x, workMax.X - size.X));
+        y = Math.Max(workMin.Y, Math.Min(y, workMax.Y - size.Y));
+        return new Vector2(x, y);
     }
 
     private static bool InRect(Vector2 p, Vector2 min, Vector2 max) => p.X >= min.X && p.X <= max.X && p.Y >= min.Y && p.Y <= max.Y;
@@ -204,8 +226,9 @@ internal sealed class SpellCheckBox
             if(under != hoverIndex) { hoverIndex = under; hoverSinceMs = now; }
             if(hoverOpen)
             {
-                var bridgeMin = new Vector2(Math.Min(anchorMin.X, popupMin.X), Math.Min(anchorMax.Y, popupMin.Y));
-                var bridgeMax = new Vector2(Math.Max(anchorMax.X, popupMax.X), Math.Max(anchorMax.Y, popupMin.Y));
+                var popupAbove = popupMax.Y <= anchorMin.Y + 1; // the gap between word and popup, on whichever side it opened
+                var bridgeMin = new Vector2(Math.Min(anchorMin.X, popupMin.X), popupAbove ? Math.Min(popupMax.Y, anchorMin.Y) : Math.Min(anchorMax.Y, popupMin.Y));
+                var bridgeMax = new Vector2(Math.Max(anchorMax.X, popupMax.X), popupAbove ? Math.Max(popupMax.Y, anchorMin.Y) : Math.Max(anchorMax.Y, popupMin.Y));
                 var grow = new Vector2(3 * gs);
                 if(InRect(mouse, anchorMin - grow, anchorMax + grow) || InRect(mouse, popupMin - grow, popupMax + grow) || InRect(mouse, bridgeMin, bridgeMax))
                     lastInsideMs = now;
@@ -307,7 +330,7 @@ internal sealed class SpellCheckBox
     {
         if(!hoverOpen || hoverFrame != ImGui.GetFrameCount()) return;
         var gs = ImGuiHelpers.GlobalScale;
-        ImGui.SetNextWindowPos(new Vector2(anchorMin.X, anchorMax.Y + 2 * gs));
+        ImGui.SetNextWindowPos(PlaceNear(anchorMin, anchorMax, hoverSize, 2 * gs)); // flips above / clamps to the screen
         const ImGuiWindowFlags flags = ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings
                                      | ImGuiWindowFlags.NoFocusOnAppearing | ImGuiWindowFlags.NoNav | ImGuiWindowFlags.NoDocking;
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(6 * gs, 4 * gs));
@@ -329,6 +352,7 @@ internal sealed class SpellCheckBox
             if(ImGui.Selectable("Add to dictionary##vierai-hadd")) { SpellChecker.AddToDictionary(hoverWord); refocusPending = true; hoverOpen = false; }
             popupMin = ImGui.GetWindowPos();
             popupMax = popupMin + ImGui.GetWindowSize();
+            hoverSize = ImGui.GetWindowSize();
         }
         ImGui.End();
     }

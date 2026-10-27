@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
 using ChatTwo.Code;
@@ -266,6 +266,9 @@ public partial class ChatLog : Window, IChatWindow
     {
         Flags = ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse | ImGuiWindowFlags.NoFocusOnAppearing;
         if (!Plugin.Config.CanMove)
+            Flags |= ImGuiWindowFlags.NoMove;
+        // VierAI-fied: while the mouse is on or near log text, a left drag selects instead of moving the window.
+        else if (Plugin.Config.VierAIDragSelect && SelMouseNearText)
             Flags |= ImGuiWindowFlags.NoMove;
 
         if (!Plugin.Config.CanResize)
@@ -606,6 +609,9 @@ public partial class ChatLog : Window, IChatWindow
             DrawLogTableStyle(tab, handler, switchedTab);
         else
             DrawLogNormalStyle(tab, handler, switchedTab);
+
+        // VierAI-fied: floating scroll-to-bottom button (AI generated code).
+        VierAIfied.ScrollToBottomButton.Draw("chat2-to-bottom");
     }
 
     private void DrawLogNormalStyle(Tab tab, PayloadHandler handler, bool switchedTab)
@@ -656,6 +662,7 @@ public partial class ChatLog : Window, IChatWindow
         {
             // This may produce ApplicationException which is catched below.
             using var messages = tab.Messages.GetReadOnly(3);
+            SelectionBeginFrame(); // VierAI-fied: drag selection
 
             var reset = false;
             if (LastResize is { IsRunning: true, Elapsed.TotalSeconds: > 0.25 })
@@ -670,11 +677,27 @@ public partial class ChatLog : Window, IChatWindow
             int? lastMessageHash = null;
             var sameCount = 0;
 
+            // VierAI-fied (AI generated code): virtualized rendering for long history (upstream issue #145).
+            // Rows whose height is already known and that sit well outside the view are not drawn at all;
+            // a run of them is replaced by a single spacer of the same total height, so scrolling is unchanged.
+            var scrollY = ImGui.GetScrollY();
+            var viewTop = scrollY - 300f;
+            var viewBottom = scrollY + ImGui.GetWindowHeight() + 300f;
+            var rowExtra = isTable && !moreCompact ? oldCellPaddingY * 2 : 0f;
+            var pendingSkip = 0f;
+            Message? prevDrawn = null;
+
+            // VierAI-fied: spam digest (runs of system / notice / glamour lines fold into one line).
+            var foldSpam = Plugin.Config.VierAIFoldSpam;
+            var foldMin = Math.Clamp(Plugin.Config.VierAIFoldSpamMin, 2, 50);
+            var runEnd = 0;
+
             var maxLines = Plugin.Config.MaxLinesToRender;
             var startLine = messages.Count > maxLines ? messages.Count - maxLines : 0;
             for (var i = startLine; i < messages.Count; i++)
             {
                 var message = messages[i];
+                var rowSelected = Selection.Step(message.Id, out var selFrom, out var selTo); // VierAI-fied
                 if (reset)
                 {
                     message.Height[tab.Identifier] = null;
@@ -710,6 +733,42 @@ public partial class ChatLog : Window, IChatWindow
                         continue;
                 }
 
+                // VierAI-fied: work out a foldable run once, at its first line.
+                var fold = false;
+                if (foldSpam && i >= runEnd && IsFoldable(message))
+                {
+                    runEnd = i + 1;
+                    while (runEnd < messages.Count && IsFoldable(messages[runEnd]))
+                        runEnd++;
+                    fold = runEnd - i >= foldMin && !ExpandedFolds.Contains(message.Id);
+                }
+                var expandedStart = foldSpam && !fold && runEnd - i >= foldMin && ExpandedFolds.Contains(message.Id);
+
+                // VierAI-fied: skip settled rows that are far off screen.
+                message.Height.TryGetValue(tab.Identifier, out var cachedHeight);
+                message.IsVisible.TryGetValue(tab.Identifier, out var cachedVisible);
+                if (!reset && cachedHeight != null && !cachedVisible && IsSettled(prevDrawn, tab.Identifier))
+                {
+                    var virtualY = ImGui.GetCursorPosY() + pendingSkip;
+                    if (virtualY + cachedHeight.Value < viewTop || virtualY > viewBottom)
+                    {
+                        pendingSkip += cachedHeight.Value + rowExtra;
+                        prevDrawn = message;
+                        if (fold)
+                        {
+                            HideRun(messages, i + 1, runEnd, tab.Identifier);
+                            i = runEnd - 1;
+                        }
+                        continue;
+                    }
+                }
+
+                if (pendingSkip > 0)
+                {
+                    FlushSkip(isTable, pendingSkip - rowExtra);
+                    pendingSkip = 0;
+                }
+
                 // go to next row
                 if (isTable)
                     ImGui.TableNextColumn();
@@ -717,9 +776,9 @@ public partial class ChatLog : Window, IChatWindow
                 // Set the height of the previous message. `lastPosY` is set to
                 // the top of the previous message, and the current cursor is at
                 // the top of the current message.
-                if (i > 0)
+                if (prevDrawn != null)
                 {
-                    var prevMessage = messages[i - 1];
+                    var prevMessage = prevDrawn;
                     prevMessage.Height.TryGetValue(tab.Identifier, out var prevHeight);
                     if (prevHeight == null || (prevMessage.IsVisible.TryGetValue(tab.Identifier, out var prevVisible) && prevVisible))
                     {
@@ -734,6 +793,7 @@ public partial class ChatLog : Window, IChatWindow
                     }
                 }
                 lastPosY = ImGui.GetCursorPosY();
+                prevDrawn = message;
 
                 // message has rendered once
                 // message isn't visible, so render dummy
@@ -751,7 +811,14 @@ public partial class ChatLog : Window, IChatWindow
 
                     var nowVisible = ImGui.IsItemVisible();
                     if (!nowVisible)
+                    {
+                        if (fold)
+                        {
+                            HideRun(messages, i + 1, runEnd, tab.Identifier);
+                            i = runEnd - 1;
+                        }
                         continue;
+                    }
 
                     if (isTable)
                         ImGui.TableSetColumnIndex(0);
@@ -796,6 +863,33 @@ public partial class ChatLog : Window, IChatWindow
                     ImGui.TableNextColumn();
 
                 var lineWidth = ImGui.GetContentRegionAvail().X;
+
+                // VierAI-fied: one clickable digest line for a folded run.
+                if (fold)
+                {
+                    DrawFoldLine(messages, i, runEnd, tab.Identifier);
+                    message.IsVisible[tab.Identifier] = ImGui.IsItemVisible();
+                    HideRun(messages, i + 1, runEnd, tab.Identifier);
+                    i = runEnd - 1;
+                    continue;
+                }
+
+                if (expandedStart)
+                {
+                    using (ImRaii.PushColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled)))
+                        ImGui.TextUnformatted("[-] ");
+                    if (ImGui.IsItemHovered())
+                        ImGuiUtil.Tooltip("Fold these lines again");
+                    if (ImGui.IsItemClicked(ImGuiMouseButton.Left))
+                    {
+                        ExpandedFolds.Remove(message.Id);
+                        ClearHeights(messages, i, runEnd, tab.Identifier);
+                    }
+                    ImGui.SameLine();
+                    lineWidth = ImGui.GetContentRegionAvail().X;
+                }
+
+                SelectionRecordBegin(message); // VierAI-fied: record text pieces for char-level selection
                 if (message.Sender.Count > 0)
                 {
                     InputHandler.ChunkHandler.DrawChunks(message.Sender, true, handler, lineWidth);
@@ -804,12 +898,25 @@ public partial class ChatLog : Window, IChatWindow
 
                 // We need to draw something otherwise the item visibility check below won't work.
                 if (message.Content.Count == 0)
+                {
+                    SelectionRecordEnd();
                     InputHandler.ChunkHandler.DrawChunks([new TextChunk(ChunkSource.Content, null, " ")], true, handler, lineWidth);
+                }
                 else
+                {
                     InputHandler.ChunkHandler.DrawChunks(message.Content, true, handler, lineWidth);
+                }
+                SelectionRecordEnd();
 
                 message.IsVisible[tab.Identifier] = ImGui.IsItemVisible();
+                SelectionRow(message, rowSelected, selFrom, selTo); // VierAI-fied
             }
+
+            // VierAI-fied: keep the full content height so the scrollbar and stick-to-bottom stay right.
+            if (pendingSkip > 0)
+                FlushSkip(isTable, pendingSkip - rowExtra);
+
+            SelectionEndFrame(messages); // VierAI-fied: mouse, Ctrl+C, right-click snapshot
         }
         catch (ApplicationException)
         {
@@ -819,6 +926,64 @@ public partial class ChatLog : Window, IChatWindow
         catch (Exception ex)
         {
             Plugin.Log.Warning(ex, "Error drawing chat log");
+        }
+    }
+
+    // VierAI-fied (AI generated code): helpers for virtualized rendering and the spam digest.
+    private readonly HashSet<Guid> ExpandedFolds = [];
+
+    private static bool IsFoldable(Message message) =>
+        message.Code.Type is ChatType.System or ChatType.Notice or ChatType.GlamourNotifications;
+
+    private static bool IsSettled(Message? prev, Guid tab)
+    {
+        if (prev == null)
+            return true;
+        prev.Height.TryGetValue(tab, out var h);
+        prev.IsVisible.TryGetValue(tab, out var v);
+        return h != null && !v;
+    }
+
+    private static void FlushSkip(bool isTable, float height)
+    {
+        if (isTable)
+        {
+            ImGui.TableNextColumn();
+            ImGui.TableNextColumn();
+        }
+        ImGui.Dummy(new Vector2(1f, Math.Max(1f, height)));
+    }
+
+    private static void HideRun(IReadOnlyList<Message> messages, int from, int to, Guid tab)
+    {
+        for (var k = from; k < to && k < messages.Count; k++)
+            messages[k].IsVisible[tab] = false;
+    }
+
+    private static void ClearHeights(IReadOnlyList<Message> messages, int from, int to, Guid tab)
+    {
+        for (var k = from; k < to && k < messages.Count; k++)
+        {
+            messages[k].Height[tab] = null;
+            messages[k].IsVisible[tab] = false;
+        }
+    }
+
+    private void DrawFoldLine(IReadOnlyList<Message> messages, int from, int to, Guid tab)
+    {
+        var first = messages[from];
+        var last = messages[Math.Min(to, messages.Count) - 1];
+        var count = to - from;
+        var fmt = Plugin.Config.Use24HourClock ? "HH:mm" : "h:mm tt";
+        var label = $"[+] {count} system / glamour lines folded ({first.Date.ToLocalTime().ToString(fmt)} - {last.Date.ToLocalTime().ToString(fmt)})";
+        using (ImRaii.PushColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled)))
+            ImGui.TextUnformatted(label);
+        if (ImGui.IsItemHovered())
+            ImGuiUtil.Tooltip("Click to show these lines");
+        if (ImGui.IsItemClicked(ImGuiMouseButton.Left))
+        {
+            ExpandedFolds.Add(first.Id);
+            ClearHeights(messages, from, to, tab);
         }
     }
 

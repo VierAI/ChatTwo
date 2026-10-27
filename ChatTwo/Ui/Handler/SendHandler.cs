@@ -10,8 +10,15 @@ public class SendHandler
 {
     private readonly Plugin Plugin;
 
-    public List<string> InputBacklog = VierAIfied.InputHistory.Shared();
-    public int InputBacklogIdx = -1;
+    // VierAIfied: Up/Down history is kept per tab, in memory only (see VierAIfied/InputHistory.cs).
+    public Tab? HistoryTab;
+    private Tab BacklogTab => HistoryTab ?? Plugin.CurrentTab;
+    public List<string> InputBacklog => BacklogTab.InputHistory;
+    public int InputBacklogIdx
+    {
+        get => BacklogTab.InputHistoryIdx;
+        set => BacklogTab.InputHistoryIdx = value;
+    }
 
     private string Message = string.Empty;
     private bool TellSpecialUnused;
@@ -29,6 +36,7 @@ public class SendHandler
 
     public void SendChatBox(Tab activeTab, ref string chatInput, ref bool tellSpecial)
     {
+        HistoryTab = activeTab; // VierAIfied: per-tab history
         if (!string.IsNullOrWhiteSpace(chatInput))
         {
             var trimmed = chatInput.Trim();
@@ -132,6 +140,7 @@ public class SendHandler
         }
 
         InputBacklog.Add(message);
-        VierAIfied.InputHistory.Save();
+        if (InputBacklog.Count > 200) // VierAIfied: cap the per-tab history
+            InputBacklog.RemoveRange(0, InputBacklog.Count - 200);
     }
 }
