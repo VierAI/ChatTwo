@@ -15,6 +15,7 @@ using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.ImGuiFileDialog;
+using FFXIVClientStructs.FFXIV.Client.Enums;
 
 namespace ChatTwo;
 
@@ -92,31 +93,6 @@ public sealed class Plugin : IDalamudPlugin
 
             VierAIfiedMigration.ImportOfficialSettings(Interface, msg => Log.Information(msg));
             Config = Interface.GetPluginConfig() as Configuration ?? new Configuration();
-
-#pragma warning disable CS0618 // Type or member is obsolete
-            // TODO Remove after 01.07.2026
-            // Migrate old channel values
-            if (Config.Version <= 5)
-            {
-                foreach (var tab in Config.Tabs)
-                {
-                    if (tab.ChatCodes.Count > 0)
-                    {
-                        tab.SelectedChannels = tab.ChatCodes.ToDictionary(pair => pair.Key, pair => (pair.Value, pair.Value));
-                        tab.ChatCodes.Clear();
-                    }
-
-                    if (Config.InactivityHideChannels.Count > 0)
-                    {
-                        Config.InactivityHideChannelsV2 = Config.InactivityHideChannels.ToDictionary(pair => pair.Key, pair => (pair.Value, pair.Value));
-                        Config.InactivityHideChannels.Clear();
-                    }
-
-                    Config.Version = 6;
-                    SaveConfig();
-                }
-            }
-#pragma warning restore CS0618 // Type or member is obsolete
 
             if (Config.Tabs.Count == 0)
                 Config.Tabs.Add(TabsUtil.VanillaGeneral);
@@ -211,6 +187,7 @@ public sealed class Plugin : IDalamudPlugin
     [SuppressMessage("ReSharper", "ConditionalAccessQualifierIsNonNullableAccordingToAPIContract")]
     public void Dispose()
     {
+        VierAIfied.InputEditor.Flush(); // VierAIfied 1.40.9.27: write the input drafts
         Interface.LanguageChanged -= LanguageChanged;
         Interface.UiBuilder.OpenMainUi -= OpenMainUi;
         Interface.UiBuilder.Draw -= Draw;
@@ -336,4 +313,5 @@ public sealed class Plugin : IDalamudPlugin
     public static bool InBattle => Condition[ConditionFlag.InCombat];
     public static bool GposeActive => Condition[ConditionFlag.WatchingCutscene];
     public static bool CutsceneActive => Condition[ConditionFlag.OccupiedInCutSceneEvent] || Condition[ConditionFlag.WatchingCutscene78];
+    public static bool InKeyboundBrawler => Sheets.TerritorySheet.TryGetRow(ClientState.TerritoryType, out var territoryType) && territoryType.TerritoryIntendedUse.RowId == (uint)TerritoryIntendedUse.KeyboundBrawler;
 }

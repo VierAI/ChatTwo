@@ -51,7 +51,37 @@ public static class ImGuiUtil
     private static unsafe byte* SelPartRaw;
     private static readonly List<(Vector2, Vector2)> PayloadBounds = [];
 
+    // VierAI-fied (AI generated code): while a bright faded line is drawn, the box of every drawn text piece,
+    // icon and emote is collected here so the line background can follow the text. Null otherwise.
+    public static List<Vector4>? FadeBgItems;
+
+    public static void FadeBgRecord()
+    {
+        if (FadeBgItems == null)
+            return;
+        var min = ImGui.GetItemRectMin();
+        var max = ImGui.GetItemRectMax();
+        if (max.X - min.X < 0.5f || max.Y - min.Y < 0.5f)
+            return; // empty items used for line breaks
+        FadeBgItems.Add(new Vector4(min.X, min.Y, max.X, max.Y));
+    }
+
     public static void PostPayload(Chunk chunk, PayloadHandler? handler)
+    {
+        // VierAI-fied: a hover tooltip may draw chunks in its own window; keep those out of the line background.
+        var fadeItems = FadeBgItems;
+        FadeBgItems = null;
+        try
+        {
+            PostPayloadInner(chunk, handler);
+        }
+        finally
+        {
+            FadeBgItems = fadeItems;
+        }
+    }
+
+    private static void PostPayloadInner(Chunk chunk, PayloadHandler? handler)
     {
         var payload = chunk.Link;
         if (payload != null && ImGui.IsItemHovered())
@@ -89,6 +119,8 @@ public static class ImGuiUtil
             var oldPos = ImGui.GetCursorScreenPos();
 
             ImGuiNative.TextUnformatted(text, textEnd);
+            if (textEnd > text)
+                FadeBgRecord(); // VierAI-fied: line background outline
             if (SelRecorder != null && textEnd > text)
             {
                 var size = ImGui.GetItemRectSize();

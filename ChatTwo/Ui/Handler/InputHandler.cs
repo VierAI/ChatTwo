@@ -25,7 +25,8 @@ public class InputHandler
     public readonly IChatWindow MainWindow;
 
     public readonly SendHandler SendHandler;
-    private readonly VierAIfied.HistoryNavigator HistoryNavigator;
+    // VierAIfied 1.40.9.27: the input is the shared RichChatInput editor (VierAIfied/InputEditor.cs).
+    internal readonly RichChatInput.RichInput Editor = new() { MaxLines = 4 };
     private readonly VierAIfiedShared.SpellCheckBox Spell = new(); // VierAIfied: spell checker
     public readonly AutoCompleteHandler AutoCompleteHandler;
     public readonly PayloadHandler PayloadHandler;
@@ -54,7 +55,8 @@ public class InputHandler
         InputHandlerId = id;
 
         SendHandler = new SendHandler(plugin);
-        HistoryNavigator = new VierAIfied.HistoryNavigator(SendHandler);
+        Editor.History = new VierAIfied.BacklogHistory(SendHandler);
+        Editor.CharAllowed = c => Plugin.Functions.Chat.IsCharValid(c);
         ChunkHandler = new ChunkHandler(plugin);
         PayloadHandler = new PayloadHandler(this);
         AutoCompleteHandler = new AutoCompleteHandler(this);
@@ -101,13 +103,18 @@ public class InputHandler
             var chatCopy = ChatInput;
             using (ImRaii.Disabled(!isChatEnabled))
             {
-                var flags = InputFlags | (!isChatEnabled ? ImGuiInputTextFlags.ReadOnly : ImGuiInputTextFlags.None);
-                ImGui.SetNextItemWidth(inputWidth);
-                ImGui.InputTextWithHint("##chat2-input", isChatEnabled ? "": Language.ChatLog_DisabledInput, ref ChatInput, 500, flags, Callback);
+                // VierAIfied 1.40.9.27: RichChatInput editor (word drag, triple-click, Shift+click, Ctrl+Delete, undo/redo,
+                // Cut/Copy/Paste menu, history, drafts, drag and drop, soft wrap); Enter, Esc and channels stay below.
+                Editor.ReadOnly = !isChatEnabled;
+                Editor.Wrap = Plugin.Config.VierAIInputWrap;
+                Editor.Drafts = VierAIfied.InputEditor.Drafts;
+                Editor.DraftKey = InputHandlerId;
+                Editor.Draw("##chat2-input", ref ChatInput, inputWidth, InputFlags, Callback, 500, isChatEnabled ? "" : Language.ChatLog_DisabledInput);
             }
             var inputActive = ImGui.IsItemActive();
             InputFocused = isChatEnabled && inputActive;
-            Spell.AfterInput(ChatInput, Plugin.Config.VierAISpellCheck && isChatEnabled, false, "##chat2-input", inputActive ? SpellCursorChar() : -1); // VierAIfied
+            VierAIfied.InputJumpToLatest.AfterInput(PayloadHandler, isChatEnabled, inputActive); // VierAIfied 1.40.9.25
+            Spell.AfterInput(Editor.Wrap ? Editor.DisplayText : ChatInput, Plugin.Config.VierAISpellCheck && isChatEnabled, Editor.Wrap, "##chat2-input", inputActive ? SpellCursorChar() : -1); // VierAIfied
 
             var tooltipDraw = Plugin.Config.PreviewPosition is PreviewPosition.Tooltip && Plugin.InputPreview.IsDrawable;
             if (tooltipDraw && ImGui.IsItemHovered())
@@ -133,6 +140,7 @@ public class InputHandler
                 if (ImGui.IsKeyDown(ImGuiKey.Enter) || ImGui.IsKeyDown(ImGuiKey.KeypadEnter))
                 {
                     Plugin.CommandHelpWindow.IsOpen = false;
+                    VierAIfied.InputJumpToLatest.Request(PayloadHandler); // VierAIfied 1.40.9.25: show the message being sent
                     SendHandler.SendChatBox(activeTab, ref ChatInput, ref tellSpecial);
 
                     if (activeTab.CurrentChannel.UseTempChannel)
@@ -166,19 +174,16 @@ public class InputHandler
                 }
             }
 
-            if (!Spell.RightClickConsumed) // VierAIfied: the spelling menu took this right-click
-            using (var context = ImRaii.ContextPopupItem("ChatInputContext"))
-            {
-                if (context)
-                {
-                    using var pushedColor = ImRaii.PushColor(ImGuiCol.Text, normalColor);
-                    if (ImGui.Selectable(Language.ChatLog_HideChat))
-                        MainWindow.CurrentHideState = HideState.User;
-                }
-            }
         }
 
         Spell.DrawPopup(); // VierAIfied
+        // VierAIfied 1.40.9.27: Cut/Copy/Paste/Select All, then the upstream "Hide chat"; not when the spelling menu took
+        // this right-click.
+        Editor.DrawMenu(Spell.RightClickConsumed, () =>
+        {
+            if (ImGui.Selectable(Language.ChatLog_HideChat))
+                MainWindow.CurrentHideState = HideState.User;
+        });
     }
 
     // VierAIfied: CursorPos is a UTF-8 byte offset; the spell checker wants a char index.
@@ -194,6 +199,7 @@ public class InputHandler
     }
 
     private readonly VierAIfiedShared.AtomicPhrases Atomic = new(); // VierAI-fied
+
 
     private unsafe int Callback(scoped ref ImGuiInputTextCallbackData data)
     {
@@ -225,7 +231,7 @@ public class InputHandler
 
             int white;
             for (white = data.CursorPos - 1; white >= 0; white--)
-                if (data.Buf[white] == ' ')
+                if (data.Buf[white] == ' ' || data.Buf[white] == '\n') // VierAIfied: '\n' = a soft line break
                     break;
 
             var start = data.Buf + white + 1;
@@ -254,12 +260,13 @@ public class InputHandler
             ActivatePos = -1;
         }
 
+
         // VierAI-fied: auto-translate phrases act as one block (VierAIfied/AtomicPhrases.cs)
         if (data.EventFlag == ImGuiInputTextFlags.CallbackAlways)
             Atomic.Apply(ref data);
 
         Plugin.CommandHelpWindow.IsOpen = false;
-        var text = MemoryHelper.ReadString((nint) data.Buf, data.BufTextLen);
+        var text = MemoryHelper.ReadString((nint) data.Buf, data.BufTextLen).Replace('\n', ' '); // VierAIfied: soft line breaks
         if (text.StartsWith('/'))
         {
             var command = text.Split(' ')[0];
@@ -269,10 +276,7 @@ public class InputHandler
                 Plugin.CommandHelpWindow.UpdateContent(info.HelpMessage);
         }
 
-        if (data.EventFlag != ImGuiInputTextFlags.CallbackHistory)
-            return 0;
-
-        // Up/Down recall of earlier input (per tab, in memory only; see VierAIfied/InputHistory.cs).
-        return HistoryNavigator.OnHistoryKey(ref data, data.EventKey);
+        // VierAIfied 1.40.9.27: Up/Down recall is done by the editor (VierAIfied/InputEditor.cs).
+        return 0;
     }
 }

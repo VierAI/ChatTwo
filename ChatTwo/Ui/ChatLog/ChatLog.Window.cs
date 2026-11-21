@@ -129,7 +129,6 @@ public partial class ChatLog : Window, IChatWindow
         }
 
         var (info, reason, target) = (args.ChannelSwitchInfo, args.TellReason, args.TellTarget);
-
         if (info.Channel != null)
         {
             var targetChannel = info.Channel;
@@ -213,12 +212,17 @@ public partial class ChatLog : Window, IChatWindow
             InputHandler.ChatInput = info.Text;
     }
 
-    public float GetRemainingHeightForMessageLog(bool supportsInputPreview)
+    public float GetRemainingHeightForMessageLog(bool supportsInputPreview, InputHandler? input = null)
     {
+        input ??= InputHandler;
         var height = ImGui.GetContentRegionAvail().Y - ImGui.CalcTextSize("A").Y * 2 - ImGui.GetStyle().ItemSpacing.Y - ImGui.GetStyle().FramePadding.Y * 2;
 
         if (supportsInputPreview && Plugin.Config.PreviewPosition is PreviewPosition.Inside)
             height -= Plugin.InputPreview.PreviewHeight;
+
+        height -= input.Editor.ExtraHeight; // VierAIfied 1.40.9.27: a soft-wrapped input is taller
+        if (Plugin.Config.VierAIInputLimitBar) // VierAIfied: room for the line length bar under the input
+            height -= VierAIfied.InputLimitBar.ReservedHeight(input.Editor);
 
         return height;
     }
@@ -259,7 +263,10 @@ public partial class ChatLog : Window, IChatWindow
     public void FinalizeFrame()
     {
         if (!DrewThisFrame)
+        {
             InputHandler.InputFocused = false;
+            FadeNotDrawn(); // VierAI-fied: window fade
+        }
     }
 
     public override unsafe void PreOpenCheck()
@@ -277,8 +284,12 @@ public partial class ChatLog : Window, IChatWindow
         if (!Plugin.Config.ShowTitleBar)
             Flags |= ImGuiWindowFlags.NoTitleBar;
 
+        FadeUpdate(); // VierAI-fied: window fade
+
+        // VierAI-fied: BgAlpha becomes SetNextWindowBgAlpha, which replaces the background alpha outright
+        // (style Alpha does not reach it), so the fade factor has to be applied here as well.
         if (LastViewport == ImGuiHelpers.MainViewport.Handle && !WasDocked)
-            BgAlpha = Plugin.Config.WindowAlpha / 100f;
+            BgAlpha = Plugin.Config.WindowAlpha / 100f * FadeBackgroundFactor;
 
         LastViewport = ImGui.GetWindowViewport().Handle;
         WasDocked = ImGui.IsWindowDocked();
@@ -312,6 +323,8 @@ public partial class ChatLog : Window, IChatWindow
 
         if (Plugin.Config is { OverrideStyle: true, ChosenStyle: not null })
             StyleModel.GetConfiguredStyles()?.FirstOrDefault(style => style.Name == Plugin.Config.ChosenStyle)?.Push();
+
+        FadePush(); // VierAI-fied: window fade
     }
 
     public override void PostDraw()
@@ -322,6 +335,8 @@ public partial class ChatLog : Window, IChatWindow
         // doesn't get called if the input is disabled.
         if (Plugin.CurrentTab.InputDisabled)
             InputHandler.Activate = false;
+
+        FadePop(); // VierAI-fied: window fade
 
         if (Plugin.Config is { OverrideStyle: true, ChosenStyle: not null })
             StyleModel.GetConfiguredStyles()?.FirstOrDefault(style => style.Name == Plugin.Config.ChosenStyle)?.Pop();
@@ -427,13 +442,17 @@ public partial class ChatLog : Window, IChatWindow
         if (ImGui.IsWindowHovered(ImGuiHoveredFlags.ChildWindows))
             InputHandler.LastActivityTime = InputHandler.FrameTime;
 
-        if (!showNovice)
-            return;
+        FadeTrackEngaged(); // VierAI-fied: window fade
 
-        ImGui.SameLine();
+        if (showNovice)
+        {
+            ImGui.SameLine();
 
-        if (ImGuiUtil.IconButton(FontAwesomeIcon.Leaf))
-            GameFunctions.GameFunctions.ClickNoviceNetworkButton();
+            if (ImGuiUtil.IconButton(FontAwesomeIcon.Leaf))
+                GameFunctions.GameFunctions.ClickNoviceNetworkButton();
+        }
+
+        VierAIfied.InputLimitBar.Draw(activeTab, InputHandler.ChatInput, InputHandler.Editor); // VierAIfied: 500-byte line length bar
     }
 
     public Dictionary<string, InputChannel> GetValidChannels()
@@ -601,9 +620,14 @@ public partial class ChatLog : Window, IChatWindow
 
     public void DrawMessageLog(Tab tab, PayloadHandler handler, float childHeight, bool switchedTab)
     {
+        FadeBgCaptureTarget(); // VierAI-fied: bright line backgrounds are drawn behind the log, on this window
         using var child = ImRaii.Child("##chat2-messages", new Vector2(-1, childHeight));
         if (!child.Success)
+        {
+            FadeBgReleaseTarget();
             return;
+        }
+        FadeBgCaptureClip();
 
         if (tab.DisplayTimestamp && Plugin.Config.PrettierTimestamps)
             DrawLogTableStyle(tab, handler, switchedTab);
@@ -619,7 +643,8 @@ public partial class ChatLog : Window, IChatWindow
         using (ImRaii.PushStyle(ImGuiStyleVar.ItemSpacing, Vector2.Zero))
             DrawMessages(tab, handler, false);
 
-        if (switchedTab || ImGui.GetScrollY() >= ImGui.GetScrollMaxY())
+        // VierAIfied 1.40.9.25: also while the input that owns this log is focused, typed in or just sent.
+        if (switchedTab || VierAIfied.InputJumpToLatest.IsActive(handler) || ImGui.GetScrollY() >= ImGui.GetScrollMaxY())
             ImGui.SetScrollHereY(1f);
 
         handler.Draw();
@@ -648,7 +673,7 @@ public partial class ChatLog : Window, IChatWindow
             {
                 // Custom styles can have cellPadding that go above 4, which GetScrollY isn't respecting
                 var cellPaddingOffset = !compact && oldCellPadding.Y > 4f ? oldCellPadding.Y - 4f : 0f;
-                if (switchedTab || ImGui.GetScrollY() + cellPaddingOffset >= ImGui.GetScrollMaxY())
+                if (switchedTab || VierAIfied.InputJumpToLatest.IsActive(handler) || ImGui.GetScrollY() + cellPaddingOffset >= ImGui.GetScrollMaxY()) // VierAIfied 1.40.9.25
                     ImGui.SetScrollHereY(1f);
 
                 handler.Draw();
@@ -658,6 +683,8 @@ public partial class ChatLog : Window, IChatWindow
 
     private void DrawMessages(Tab tab, PayloadHandler handler, bool isTable, bool moreCompact = false, float oldCellPaddingY = 0)
     {
+        var anchorRemoved = 0f; // VierAI-fied: scroll anchor, applied in finally
+        var anchorScrollY = 0f;
         try
         {
             // This may produce ApplicationException which is catched below.
@@ -687,16 +714,24 @@ public partial class ChatLog : Window, IChatWindow
             var pendingSkip = 0f;
             Message? prevDrawn = null;
 
+            var maxLines = Plugin.Config.MaxLinesToRender;
+            var startLine = messages.Count > maxLines ? messages.Count - maxLines : 0;
+
+            // VierAI-fied: hold a scrolled-up view on its lines when old lines are dropped from the top.
+            var anchorTolerance = Math.Max(1f, isTable && !moreCompact ? oldCellPaddingY : 0f);
+            anchorScrollY = scrollY;
+            anchorRemoved = ScrollAnchorBegin(tab.Identifier, startLine < messages.Count ? messages[startLine] : null, reset, scrollY, anchorTolerance, out var anchor);
+            pendingSkip += anchorRemoved;
+
             // VierAI-fied: spam digest (runs of system / notice / glamour lines fold into one line).
             var foldSpam = Plugin.Config.VierAIFoldSpam;
             var foldMin = Math.Clamp(Plugin.Config.VierAIFoldSpamMin, 2, 50);
             var runEnd = 0;
 
-            var maxLines = Plugin.Config.MaxLinesToRender;
-            var startLine = messages.Count > maxLines ? messages.Count - maxLines : 0;
             for (var i = startLine; i < messages.Count; i++)
             {
                 var message = messages[i];
+                ScrollAnchorRecord(anchor, message, ImGui.GetCursorPosY() + pendingSkip - anchorRemoved); // VierAI-fied
                 var rowSelected = Selection.Step(message.Id, out var selFrom, out var selTo); // VierAI-fied
                 if (reset)
                 {
@@ -827,6 +862,8 @@ public partial class ChatLog : Window, IChatWindow
                     message.IsVisible[tab.Identifier] = nowVisible;
                 }
 
+                var fadePushed = FadeLineBegin(message, isTable); // VierAI-fied: new lines stay bright, then fade
+
                 if (tab.DisplayTimestamp)
                 {
                     var localTime = message.Date.ToLocalTime();
@@ -837,6 +874,7 @@ public partial class ChatLog : Window, IChatWindow
                         {
                             lastTimestamp = timestamp;
                             ImGui.TextUnformatted(timestamp);
+                            ImGuiUtil.FadeBgRecord(); // VierAI-fied: line background outline
 
                             // We use an IsItemHovered() check here instead of
                             // just calling Tooltip() to avoid computing the
@@ -860,7 +898,7 @@ public partial class ChatLog : Window, IChatWindow
                 }
 
                 if (isTable)
-                    ImGui.TableNextColumn();
+                    FadeBgNextColumn(); // VierAI-fied: TableNextColumn; the line background covers both cells
 
                 var lineWidth = ImGui.GetContentRegionAvail().X;
 
@@ -868,7 +906,9 @@ public partial class ChatLog : Window, IChatWindow
                 if (fold)
                 {
                     DrawFoldLine(messages, i, runEnd, tab.Identifier);
+                    ImGuiUtil.FadeBgRecord(); // VierAI-fied: line background outline
                     message.IsVisible[tab.Identifier] = ImGui.IsItemVisible();
+                    FadeLineEnd(fadePushed);
                     HideRun(messages, i + 1, runEnd, tab.Identifier);
                     i = runEnd - 1;
                     continue;
@@ -878,6 +918,7 @@ public partial class ChatLog : Window, IChatWindow
                 {
                     using (ImRaii.PushColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled)))
                         ImGui.TextUnformatted("[-] ");
+                    ImGuiUtil.FadeBgRecord(); // VierAI-fied: line background outline
                     if (ImGui.IsItemHovered())
                         ImGuiUtil.Tooltip("Fold these lines again");
                     if (ImGui.IsItemClicked(ImGuiMouseButton.Left))
@@ -909,6 +950,7 @@ public partial class ChatLog : Window, IChatWindow
                 SelectionRecordEnd();
 
                 message.IsVisible[tab.Identifier] = ImGui.IsItemVisible();
+                FadeLineEnd(fadePushed);
                 SelectionRow(message, rowSelected, selFrom, selTo); // VierAI-fied
             }
 
@@ -926,6 +968,13 @@ public partial class ChatLog : Window, IChatWindow
         catch (Exception ex)
         {
             Plugin.Log.Warning(ex, "Error drawing chat log");
+        }
+        finally
+        {
+            FadeLineEnd(); // VierAI-fied: never leave a per-line alpha pushed
+            FadeBgFlush(); // VierAI-fied: draw the frame's bright line backgrounds in one pass
+            FadeBgReleaseTarget();
+            ScrollAnchorEnd(anchorRemoved, anchorScrollY); // VierAI-fied: also after an exception
         }
     }
 

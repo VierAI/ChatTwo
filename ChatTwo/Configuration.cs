@@ -58,9 +58,6 @@ public class Configuration : IPluginConfiguration
     public int InactivityHideTimeout = 10;
     public bool InactivityHideActiveDuringBattle = true;
 
-    [Obsolete("Use InactivityHideChannelsV2 instead")]
-    public Dictionary<ChatType, ChatSource> InactivityHideChannels = [];
-
     public Dictionary<ChatType, (ChatSource, ChatSource)> InactivityHideChannelsV2 = [];
     public bool InactivityHideExtraChatAll = true;
     public HashSet<Guid> InactivityHideExtraChatChannels = [];
@@ -95,7 +92,28 @@ public class Configuration : IPluginConfiguration
     public bool VierAITellOpensXim = true; // VierAIfied: Send Tell opens XIM when loaded
     public bool VierAIFoldSpam = true; // VierAIfied: fold runs of system/glamour lines into one line
     public bool VierAIDragSelect = true; // VierAIfied: click-and-drag line selection with copy in the message log
+    public bool VierAIInputLimitBar = true; // VierAIfied: 500-byte line length bar under the chat input
+    public bool VierAIInputWrap = true; // VierAIfied 1.40.9.27: the chat input wraps a long line onto up to 4 rows
     public int VierAIFoldSpamMin = 3; // VierAIfied: shortest run that gets folded (2-50)
+    public bool VierAIFade; // VierAIfied: fade the main chat window while it is not in use (off by default)
+    public float VierAIFadeUnfocusedOpacity = 30f; // VierAIfied: window (background, buttons, input) opacity while not in use, % of the focused look
+    public float VierAIFadeLineUnfocusedOpacity = -1f; // VierAIfied 1.41.2.10: message line opacity while not in use, % (below 0 = not set yet: copies the window value)
+    public float VierAIFadeStep = 2f; // VierAIfied: opacity change per frame while fading, in %
+    public float VierAIFadeLineBgMax = 60f; // VierAIfied 1.41.2.9: peak opacity of the background behind bright new lines, in % (0 = no background)
+    public float VierAIFadeNewLineSeconds = 20f; // VierAIfied: total new-line fade time: full opacity for the first half, then a smooth fade over the second half (0 = off)
+
+    // VierAIfied: a hand-edited config can hold NaN or Infinity; put those back to the defaults, then clamp.
+    public void SanitizeFade()
+    {
+        WindowAlpha = Math.Clamp(float.IsFinite(WindowAlpha) ? WindowAlpha : 100f, 0f, 100f);
+        VierAIFadeUnfocusedOpacity = Math.Clamp(float.IsFinite(VierAIFadeUnfocusedOpacity) ? VierAIFadeUnfocusedOpacity : 30f, 0f, 100f);
+        if (!float.IsFinite(VierAIFadeLineUnfocusedOpacity) || VierAIFadeLineUnfocusedOpacity < 0f)
+            VierAIFadeLineUnfocusedOpacity = VierAIFadeUnfocusedOpacity; // older configs: lines start at the window value
+        VierAIFadeLineUnfocusedOpacity = Math.Clamp(VierAIFadeLineUnfocusedOpacity, 0f, 100f);
+        VierAIFadeStep = Math.Clamp(float.IsFinite(VierAIFadeStep) ? VierAIFadeStep : 2f, 0.1f, 100f);
+        VierAIFadeNewLineSeconds = Math.Clamp(float.IsFinite(VierAIFadeNewLineSeconds) ? VierAIFadeNewLineSeconds : 20f, 0f, 120f);
+        VierAIFadeLineBgMax = Math.Clamp(float.IsFinite(VierAIFadeLineBgMax) ? VierAIFadeLineBgMax : 60f, 0f, 100f);
+    }
     public int MaxLinesToRender = 10_000; // 1-10000
     public bool Use24HourClock;
 
@@ -192,10 +210,18 @@ public class Configuration : IPluginConfiguration
         PlaySounds = other.PlaySounds;
         KeepInputFocus = other.KeepInputFocus;
         VierAISpellCheck = other.VierAISpellCheck; // VierAIfied
+        VierAIInputLimitBar = other.VierAIInputLimitBar; // VierAIfied
+        VierAIInputWrap = other.VierAIInputWrap; // VierAIfied
         VierAITellOpensXim = other.VierAITellOpensXim; // VierAIfied
         VierAIFoldSpam = other.VierAIFoldSpam; // VierAIfied
         VierAIFoldSpamMin = other.VierAIFoldSpamMin; // VierAIfied
         VierAIDragSelect = other.VierAIDragSelect; // VierAIfied
+        VierAIFade = other.VierAIFade; // VierAIfied
+        VierAIFadeUnfocusedOpacity = other.VierAIFadeUnfocusedOpacity; // VierAIfied
+        VierAIFadeLineUnfocusedOpacity = other.VierAIFadeLineUnfocusedOpacity; // VierAIfied 1.41.2.10
+        VierAIFadeStep = other.VierAIFadeStep; // VierAIfied
+        VierAIFadeNewLineSeconds = other.VierAIFadeNewLineSeconds; // VierAIfied
+        VierAIFadeLineBgMax = other.VierAIFadeLineBgMax; // VierAIfied
         MaxLinesToRender = other.MaxLinesToRender;
         Use24HourClock = other.Use24HourClock;
         ShowEmotes = other.ShowEmotes;
@@ -256,9 +282,6 @@ public static class UnreadModeExt
 public class Tab
 {
     public string Name = Language.Tab_DefaultName;
-
-    [Obsolete("Removed in favor of SelectedChannels")]
-    public Dictionary<ChatType, ChatSource> ChatCodes = new();
 
     public Dictionary<ChatType, (ChatSource, ChatSource)> SelectedChannels = new();
     public bool ExtraChatAll;

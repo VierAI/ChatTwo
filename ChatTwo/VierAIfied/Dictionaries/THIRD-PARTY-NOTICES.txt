@@ -25,3 +25,6 @@ SixLabors.ImageSharp 3.1.12 (upstream dependency of this plugin, unmodified NuGe
 Licence check (2026-10-26): WeCantSpell.Hunspell 7.0.1 license.txt (MPL 1.1 / GPL 2.0 / LGPL 2.1,
 inherited from Hunspell) and the SCOWL en_US licence (BSD-style, redistribution allowed with notice)
 both permit redistribution in this open-source plugin; their notices ship in the release zip.
+
+RichChatInput 1.0.0 (chat input editor, compiled in from ChatTwo/RichChatInput)
+  MIT License, Copyright (c) 2026 VierAI. Full text: RichChatInput-LICENSE.txt. AI generated code.

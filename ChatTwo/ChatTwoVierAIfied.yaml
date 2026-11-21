@@ -23,6 +23,10 @@ description: |-
 
 
   Added:
+  - Wrapping chat input with undo/redo, a right-click Cut/Copy/Paste/Select All menu, drag and drop and kept drafts
+  - Double-click and drag in the input selects whole words
+  - Message log jumps to the newest message when you type
+  - 500-byte message length bar under the input
   - Spell checker with hover suggestions
   - Up/Down message history (shared with XIM)
   - Single-match Tab completion fills in directly
@@ -46,7 +50,22 @@ tags:
   - Replacement
 changelog: |-
   Changes from Chat 2:
+  Blended line background and split fade (1.41.2.10): bright line backgrounds no longer overlap and get darker below 100% window opacity, they sit evenly around the letters, and the unfocused opacity is now two settings, one for the window and one for the lines
+  Softer line background (1.41.2.9): soft faded edge, a pixel lower for descenders, and a max opacity slider (default 60%)
+  Line background follows the text (1.41.2.8): the background behind bright new lines only covers the text on each line
+  Fade fixes (1.41.2.7): bright new lines get their own background that fades with them; fade settings are saved as soon as you change them
+  Slower new-line fade (1.41.2.6): new lines stay solid for half the new message fade time, then fade smoothly over the other half (default 20 s: 10 s solid, 10 s fading)
+  Window fade background fix (1.41.2.5): the window background fades with the text, fully transparent at 0%
+  Fade settings as sliders (1.41.2.5): opacity, fade speed and new message delay are real sliders
+  Scrolled-up log holds its place (1.41.2.5): when old lines drop off a full log, a scrolled-up view stays on the lines being read
+  Window fade (1.41.2.4): optional, off by default (Settings > Chat log). The main chat window fades to an unfocused opacity while not in use; new lines stay bright for a few seconds, then fade one at a time
+  Based on Chat 2 1.41.2 (1.41.2.1): includes the upstream 1.41.2 change (keybinds are no longer checked while in keybound brawler mode); all VierAI-fied features unchanged
+  Based on Chat 2 1.41.1 (1.41.1.1): includes the upstream 1.41.1 changes (keybound brawler fix, removed old migration paths, translation updates); all VierAI-fied features unchanged
   Features
+  - Rich chat input (1.40.9.27): the chat input now uses RichChatInput, a small MIT-licensed input editor shared with the VierAI-fied XIM (source copy in ChatTwo/RichChatInput). Long messages wrap onto up to 4 lines instead of scrolling sideways (Settings > Chat Log, on by default; Up/Down then recall history only on the first or last line); triple-click selects the whole message; Shift+click extends the selection; Ctrl+Delete deletes the word to the right (Ctrl+Backspace to the left as before); Ctrl+Z undoes and Ctrl+Y or Ctrl+Shift+Z redoes, typing in word-sized steps; right-click gives Cut, Copy, Paste and Select All (plus Hide chat; on a misspelled word the spelling suggestions come first); a selection can be dragged with the mouse to move it, or copied when Ctrl is held on release; a half-typed message is kept when the window is closed or the plugin reloads; the 1.40.9.26 double-click word drag is now part of the editor. The length bar is drawn by the editor and from 80% shows the byte count (used/500). Enter, channel prefixes, Tab completion, auto-translate blocks, spell check, IME, keybinds and the jump to the newest message are unchanged (AI generated code)
+  - Word-by-word drag selection (1.40.9.26): double-click a word in the chat input and keep the left button down; dragging then selects whole words (a run of spaces or of punctuation counts as one step) to the left or right of that word, and the double-clicked word stays selected even when the drag comes back across it. Releasing the button ends it. Single-click caret placement, normal click-drag selection, Shift+click, Shift+arrows, copy/paste, Enter, auto-translate blocks, the length bar and the jump to the newest message are unchanged; main window and popped-out tabs (AI generated code)
+  - Message log follows typing (1.40.9.25): clicking into the chat input, typing or editing in it (held keys repeat, paste and delete count) and sending with Enter jump the message log to the newest message, in the main window and in popped-out tabs. Modifier keys alone, Esc, F-keys and Page Up/Down do not. A log you scrolled up to read is left where it is while you are not typing, and the usual stick-to-bottom while at the bottom is unchanged (AI generated code)
+  - Message length bar (1.40.9.22, colours 1.40.9.24): a thin bar under the chat input fills as you type, counting the UTF-8 bytes of the line that will be sent (channel prefix such as /s or /tell Name@World included) against the game's 500-byte limit for one chat line. It stays plain white up to 250 bytes (50%), fades to yellow by 375 bytes (75%) and to red by 450 bytes (90%), and stays red past 500; hover over it for the exact count. Shown in the main window and in popped-out tabs. Toggle in Settings > Chat Log, "Show the message length bar" (on by default) (AI generated code)
   - Scroll-to-bottom button: when you scroll up in the message log, a small down-arrow button appears in its bottom-right corner; click it to jump back to the newest message
   - Spell checker in the chat input: misspelled words are highlighted, hover or right-click for suggestions, Add to dictionary or Ignore; skips commands, links, auto-translate, numbers, ALL CAPS and nearby player names; includes an FFXIV word list; toggle in Settings > Chat Log
   - Spell check settings: Highlight, Wavy or Straight style, colour, highlight fill slider, hover suggestions on/off, Clear ignored words; ignored words and the user dictionary are shared between the VierAI-fied XIM and Chat 2 (vierai-config.json)

@@ -63,6 +63,7 @@ public class ChunkHandler
         var uv1 = new Vector2(entry.Left + entry.Width, entry.Top + entry.Height + 170) * 2 / texSize;
 
         ImGui.Image(iconTexture.Handle, size, uv0, uv1);
+        ImGuiUtil.FadeBgRecord(); // VierAI-fied: line background outline
         ImGuiUtil.PostPayload(chunk, handler);
     }
 
@@ -94,6 +95,7 @@ public class ChunkHandler
                     image.Draw(emoteSize);
                 else
                     ImGui.Dummy(emoteSize);
+                ImGuiUtil.FadeBgRecord(); // VierAI-fied: line background outline
 
                 if (ImGui.IsItemHovered())
                     ImGuiUtil.Tooltip(emotePayload.Code);
@@ -143,6 +145,7 @@ public class ChunkHandler
         else
         {
             ImGui.TextUnformatted(content);
+            ImGuiUtil.FadeBgRecord(); // VierAI-fied: line background outline
             ImGuiUtil.PostPayload(chunk, handler);
         }
 

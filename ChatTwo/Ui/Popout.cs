@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using ChatTwo.Code;
 using ChatTwo.GameFunctions.Types;
 using ChatTwo.Resources;
@@ -116,7 +116,7 @@ public class Popout : Window, IChatWindow
         }
 
         var remainingHeight = Tab.SupportsInput
-            ? Plugin.ChatLog.GetRemainingHeightForMessageLog(false)
+            ? Plugin.ChatLog.GetRemainingHeightForMessageLog(false, InputHandler)
             : ImGui.GetContentRegionAvail().Y;
 
         Plugin.ChatLog.DrawMessageLog(Tab, InputHandler.PayloadHandler, remainingHeight, false);
@@ -151,6 +151,7 @@ public class Popout : Window, IChatWindow
 
         var tellSpecial = false;
         InputHandler.DrawInputArea(Tab, ImGui.GetContentRegionAvail().X, ref tellSpecial);
+        VierAIfied.InputLimitBar.Draw(Tab, InputHandler.ChatInput, InputHandler.Editor); // VierAIfied: 500-byte line length bar
     }
 
     public override void PostDraw()
